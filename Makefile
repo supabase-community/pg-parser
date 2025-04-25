@@ -15,7 +15,7 @@ LDFLAGS = -Wl,--gc-sections,--strip-all \
 		--no-entry \
 		-sFILESYSTEM=0 \
 		-sEXPORT_NAME="$(WASM_MODULE_NAME)" \
-		-sEXPORTED_RUNTIME_METHODS=ccall,cwrap \
+		-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,UTF8ToString \
 		-sMODULARIZE=1 \
 		-sEXPORT_ES6=1
 
