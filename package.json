@@ -1,0 +1,47 @@
+{
+  "name": "@supabase/pg-parser",
+  "version": "0.1.0",
+  "description": "Parse Postgres SQL into an AST",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "build": "pnpm build:wasm && pnpm build:js",
+    "build:js": "tsup --clean",
+    "build:wasm": "pnpm make:15 build && pnpm make:16 build && pnpm make:17 build",
+    "make": "docker compose run --rm emsdk emmake make",
+    "make:15": "pnpm make LIBPG_QUERY_TAG=15-4.2.4",
+    "make:16": "pnpm make LIBPG_QUERY_TAG=16-5.2.0",
+    "make:17": "pnpm make LIBPG_QUERY_TAG=17-6.1.0",
+    "wasm-opt": "docker compose run --rm binaryen wasm-opt -Oz --enable-bulk-memory pg-parser.wasm -o pg-parser.min.wasm",
+    "wasm-objdump": "docker compose run --rm wabt wasm-objdump",
+    "prepublishOnly": "pnpm build",
+    "test": "vitest"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.cjs"
+    }
+  },
+  "dependencies": {
+    "@bjorn3/browser_wasi_shim": "^0.4.1"
+  },
+  "devDependencies": {
+    "@total-typescript/tsconfig": "^1.0.4",
+    "@types/node": "^22.8.6",
+    "@vitest/browser": "^3.1.1",
+    "playwright": "^1.52.0",
+    "prettier": "^3.3.3",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3",
+    "vite": "^6.3.2",
+    "vitest": "^3.1.1"
+  }
+}
