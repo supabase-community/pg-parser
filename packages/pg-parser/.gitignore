@@ -1,0 +1,6 @@
+*.o
+*.a
+*.wasm
+vendor/
+node_modules/
+wasm/
