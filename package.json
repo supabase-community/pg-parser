@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "build": "pnpm --filter @supabase/pg-parser build",
+    "test": "pnpm --filter @supabase/pg-parser test"
+  }
+}
