@@ -33,7 +33,7 @@ describe('pg-parser', () => {
   });
 
   it('throws error for unsupported version', async () => {
-    const create = () => new PgParser({ version: 13 });
+    const create = () => new PgParser({ version: 13 as any });
     expect(create).toThrow('unsupported version');
   });
 
@@ -44,7 +44,9 @@ describe('pg-parser', () => {
     assertDefined(result.stmts, 'stmts not found');
     expect(result.stmts.length).toBeGreaterThan(0);
   });
+});
 
+describe('parser', () => {
   it('parses sql into ast', async () => {
     const pgParser = new PgParser();
     const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
