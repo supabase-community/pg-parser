@@ -1,3 +1,4 @@
+PROTOBUF_TYPE_GENERATOR = tsx scripts/generate-types.ts
 
 SRC_DIR = bindings
 OUTPUT_DIR = wasm/$(LIBPG_QUERY_VERSION)
@@ -34,6 +35,7 @@ LIBPG_QUERY_VERSION := $(firstword $(subst -, ,$(LIBPG_QUERY_TAG)))
 $(OUTPUT_JS): $(OBJ_FILES) $(LIBPG_QUERY_LIB)
 	@mkdir -p $(OUTPUT_DIR)
 	$(CC) $(LDFLAGS) -L$(LIBPG_QUERY_DIR) -lpg_query -o $(OUTPUT_JS) $(OBJ_FILES) --closure 0 --emit-tsd $(OUTPUT_D_TS)
+	$(PROTOBUF_TYPE_GENERATOR) -i $(LIBPG_QUERY_DIR)/protobuf/pg_query.proto -o $(OUTPUT_DIR)
 
 %.o: %.c | $(LIBPG_QUERY_LIB)
 	$(CC) -I$(LIBPG_QUERY_DIR) -I$(INCLUDE) $(CFLAGS) -c $< -o $@

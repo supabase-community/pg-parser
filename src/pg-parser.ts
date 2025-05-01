@@ -1,27 +1,24 @@
-import { type MainModule as MainModule15 } from '../wasm/15/pg-parser.js';
-import { type MainModule as MainModule16 } from '../wasm/16/pg-parser.js';
-import { type MainModule as MainModule17 } from '../wasm/17/pg-parser.js';
+import { SUPPORTED_VERSIONS } from './constants.js';
 import { PgParseError } from './errors.js';
-import type { PgParseResult } from './types.js';
+import type {
+  MainModule,
+  PgParseResult,
+  PgParserModule,
+  SupportedVersion,
+} from './types.js';
 
-type MainModule = MainModule15 | MainModule16 | MainModule17;
-type PgParserModule = (options?: unknown) => Promise<MainModule>;
-
-export const supportedVersions = [15, 16, 17] as const;
-export type SupportedVersion = (typeof supportedVersions)[number];
-
-export type PgParserOptions = {
-  version?: SupportedVersion;
+export type PgParserOptions<T extends SupportedVersion> = {
+  version?: T;
 };
 
-export class PgParser {
+export class PgParser<T extends SupportedVersion = 17> {
   readonly ready: Promise<void>;
-  readonly version: number;
+  readonly version: T;
 
-  #module: Promise<MainModule>;
+  #module: Promise<MainModule<T>>;
 
-  constructor({ version = 17 }: PgParserOptions = {}) {
-    if (!supportedVersions.includes(version)) {
+  constructor({ version = 17 as T }: PgParserOptions<T> = {}) {
+    if (!SUPPORTED_VERSIONS.includes(version)) {
       throw new Error(`unsupported version: ${version}`);
     }
 
@@ -33,7 +30,7 @@ export class PgParser {
   async #init(version: SupportedVersion) {
     const createModule = await import(
       `../wasm/${version}/pg-parser.js` as const
-    ).then<PgParserModule>((module) => module.default);
+    ).then<PgParserModule<T>>((module) => module.default);
 
     return await createModule();
   }
@@ -51,7 +48,7 @@ export class PgParser {
   /**
    * Parses a PgQueryParseResult struct from a pointer
    */
-  async #parsePgQueryParseResult(resultPtr: number): Promise<PgParseResult> {
+  async #parsePgQueryParseResult(resultPtr: number): Promise<PgParseResult<T>> {
     const module = await this.#module;
 
     const parseTreePtr = module.getValue(resultPtr, 'i32');
