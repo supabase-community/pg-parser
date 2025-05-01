@@ -1,7 +1,7 @@
-import type { PgParseResult } from './types.js';
+import type { PgParseResult, SupportedVersion } from './types.js';
 
-export async function unwrapResult(
-  result: PgParseResult | Promise<PgParseResult>
+export async function unwrapResult<T extends SupportedVersion>(
+  result: PgParseResult<T> | Promise<PgParseResult<T>>
 ) {
   let resolved = await result;
   if (resolved.error) {
