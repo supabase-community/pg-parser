@@ -43,3 +43,15 @@ export type PgParseResultError = {
 export type PgParseResult<T extends SupportedVersion> =
   | PgParseResultSuccess<T>
   | PgParseResultError;
+
+export type PgDeparseResultSuccess = {
+  sql: string;
+  error: undefined;
+};
+
+export type PgDeparseResultError = {
+  sql: undefined;
+  error: PgParseError;
+};
+
+export type PgDeparseResult = PgDeparseResultSuccess | PgDeparseResultError;
