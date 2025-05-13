@@ -2,10 +2,14 @@ import { SUPPORTED_VERSIONS } from './constants.js';
 import { PgParseError } from './errors.js';
 import type {
   MainModule,
+  ParseResult,
+  PgDeparseResult,
   PgParseResult,
   PgParserModule,
   SupportedVersion,
 } from './types.js';
+
+type Pointer = number;
 
 export type PgParserOptions<T extends SupportedVersion> = {
   version?: T;
@@ -35,56 +39,192 @@ export class PgParser<T extends SupportedVersion = 17> {
     return await createModule();
   }
 
-  async parseSql(sql: string) {
+  async parse(sql: string): Promise<PgParseResult<T>> {
     const module = await this.#module;
 
-    const resultPtr = module.ccall('parse_sql', 'number', ['string'], [sql]);
-    const parseResult = await this.#parsePgQueryParseResult(resultPtr);
-    module.ccall('free_parse_result', undefined, ['number'], [resultPtr]);
+    const parseResultPtr: Pointer = module.ccall(
+      'parse_sql',
+      'number',
+      ['string'],
+      [sql]
+    );
 
-    return parseResult;
-  }
-
-  /**
-   * Parses a PgQueryParseResult struct from a pointer
-   */
-  async #parsePgQueryParseResult(resultPtr: number): Promise<PgParseResult<T>> {
-    const module = await this.#module;
-
-    const parseTreePtr = module.getValue(resultPtr, 'i32');
-    const stderrBufferPtr = module.getValue(resultPtr + 4, 'i32');
-    const errorPtr = module.getValue(resultPtr + 8, 'i32');
-
-    const tree = parseTreePtr
-      ? JSON.parse(module.UTF8ToString(parseTreePtr))
-      : undefined;
-    const stderrBuffer = stderrBufferPtr
-      ? module.UTF8ToString(stderrBufferPtr)
-      : undefined;
+    // Parse struct PgQueryProtobufParseResult from the pointer
+    const parseTreePtr = parseResultPtr;
+    const stderrBufferPtr: Pointer = module.getValue(parseResultPtr + 8, 'i32');
+    const errorPtr: Pointer = module.getValue(parseResultPtr + 12, 'i32');
     const error = errorPtr
       ? await this.#parsePgQueryError(errorPtr)
       : undefined;
 
     if (error) {
+      module.ccall(
+        'free_parse_result',
+        undefined,
+        ['number'],
+        [parseResultPtr]
+      );
       return {
         tree: undefined,
         error,
       };
     }
 
-    if (!tree) {
-      throw new Error('both parse tree and error are undefined');
+    if (!parseTreePtr) {
+      throw new Error('parse tree is undefined');
     }
 
+    const stderrBuffer = stderrBufferPtr
+      ? module.UTF8ToString(stderrBufferPtr)
+      : undefined;
+
+    // Convert protobuf to JSON
+    const protobufToJsonResultPtr: Pointer = module.ccall(
+      'protobuf_to_json',
+      'number',
+      ['number'],
+      [parseTreePtr]
+    );
+
+    const parseResult = await this.#parseProtobufToJsonResult<T>(
+      protobufToJsonResultPtr
+    );
+
+    module.ccall('free_parse_result', undefined, ['number'], [parseResultPtr]);
+
     return {
-      tree,
+      tree: parseResult,
       error: undefined,
       stderrBuffer,
     };
   }
 
+  async deparse(parseTree: ParseResult<T>): Promise<PgDeparseResult> {
+    const module = await this.#module;
+
+    // Convert JSON to protobuf
+    const jsonToProtobufResultPtr: Pointer = module.ccall(
+      'json_to_protobuf',
+      'number',
+      ['string'],
+      [JSON.stringify(parseTree)]
+    );
+
+    const protobufPtr = await this.#parseJsonToProtobufResult(
+      jsonToProtobufResultPtr
+    );
+
+    const deparseResultPtr: Pointer = module.ccall(
+      'deparse_sql',
+      'number',
+      ['number'],
+      [protobufPtr]
+    );
+
+    // Free the protobuf result after we're done with it
+    module.ccall(
+      'free_json_to_protobuf_result',
+      undefined,
+      ['number'],
+      [jsonToProtobufResultPtr]
+    );
+
+    // Parse struct PgQueryDeparseResult from the pointer
+    const queryPtr = module.getValue(deparseResultPtr, 'i32');
+    const errorPtr = module.getValue(deparseResultPtr + 4, 'i32');
+    const error = errorPtr
+      ? await this.#parsePgQueryError(errorPtr)
+      : undefined;
+
+    if (error) {
+      module.ccall(
+        'free_deparse_result',
+        undefined,
+        ['number'],
+        [deparseResultPtr]
+      );
+      return {
+        sql: undefined,
+        error,
+      };
+    }
+
+    const sql = queryPtr ? module.UTF8ToString(queryPtr) : undefined;
+
+    if (!sql) {
+      module.ccall(
+        'free_deparse_result',
+        undefined,
+        ['number'],
+        [deparseResultPtr]
+      );
+      throw new Error('query is undefined');
+    }
+
+    module.ccall(
+      'free_deparse_result',
+      undefined,
+      ['number'],
+      [deparseResultPtr]
+    );
+
+    return {
+      sql,
+      error: undefined,
+    };
+  }
+
   /**
-   * Parses a PgQueryError struct from a pointer
+   * Parses a ProtobufToJsonResult struct from a pointer.
+   */
+  async #parseProtobufToJsonResult<T>(resultPtr: Pointer): Promise<T> {
+    const module = await this.#module;
+
+    const jsonStringPtr = module.getValue(resultPtr, 'i32');
+    const errorPtr = module.getValue(resultPtr + 4, 'i32');
+
+    const jsonString = jsonStringPtr
+      ? module.UTF8ToString(jsonStringPtr)
+      : undefined;
+    const error = errorPtr ? module.UTF8ToString(errorPtr) : undefined;
+
+    module.ccall(
+      'free_protobuf_to_json_result',
+      undefined,
+      ['number'],
+      [resultPtr]
+    );
+
+    if (error) {
+      // This is unexpected, so throw instead of returning an error
+      throw new Error(error);
+    }
+
+    if (!jsonString) {
+      throw new Error('both json string and error are undefined');
+    }
+
+    return JSON.parse(jsonString);
+  }
+
+  async #parseJsonToProtobufResult(resultPtr: Pointer): Promise<Pointer> {
+    const module = await this.#module;
+
+    const pgQueryProtobufPtr = resultPtr;
+    const errorPtr: number = module.getValue(resultPtr + 8, 'i32');
+
+    const error = errorPtr ? module.UTF8ToString(errorPtr) : undefined;
+
+    if (error) {
+      // This is unexpected, so throw instead of returning an error
+      throw new Error(error);
+    }
+
+    return pgQueryProtobufPtr;
+  }
+
+  /**
+   * Parses a PgQueryError struct from a pointer.
    */
   async #parsePgQueryError(errorPtr: number) {
     const module = await this.#module;

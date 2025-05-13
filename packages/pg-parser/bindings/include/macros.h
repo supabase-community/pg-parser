@@ -3,4 +3,4 @@
 
 #define EXPORT(name) __attribute__((export_name(name)))
 
-#endif // MACROS_H
+#endif  // MACROS_H
