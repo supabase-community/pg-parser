@@ -9,11 +9,24 @@ import {
   assertDefined,
   isParseResultVersion,
   unwrapParseResult,
+  unwrapDeparseResult,
 } from './util.js';
 
 import sqlDump from '../test/fixtures/dump.sql';
 
-describe('pg-parser', () => {
+describe('demo', () => {
+  it('demo', async () => {
+    const pgParser = new PgParser();
+    const result = await unwrapParseResult(
+      pgParser.parse(
+        'SELECT id, content FROM blog_posts ORDER BY created_at DESC'
+      )
+    );
+    console.dir(result, { depth: null });
+  });
+});
+
+describe('versions', () => {
   it('parses sql in v15', async () => {
     const pgParser = new PgParser({ version: 15 });
     const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
@@ -28,6 +41,12 @@ describe('pg-parser', () => {
 
   it('parses sql in v17', async () => {
     const pgParser = new PgParser({ version: 17 });
+    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
+    expect(result.version).toBe(170004);
+  });
+
+  it('parses sql in v17 by default', async () => {
+    const pgParser = new PgParser();
     const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
     expect(result.version).toBe(170004);
   });
@@ -213,5 +232,18 @@ describe('parser', () => {
     // Error will be at the start of the second "FROM" relative to the entire SQL string
     const expectedPosition = sql.indexOf('FROM', sql.indexOf('my_table_1'));
     expect(result.error.position).toBe(expectedPosition);
+  });
+});
+
+describe('deparser', () => {
+  it('deparses ast into sql', async () => {
+    const pgParser = new PgParser();
+    const parseResult = await unwrapParseResult(
+      pgParser.parse('SELECT 1 + 1 AS sum')
+    );
+
+    const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+
+    expect(sql).toBe('SELECT 1 + 1 AS sum');
   });
 });

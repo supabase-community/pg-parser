@@ -5,11 +5,15 @@ import {
 } from './errors.js';
 import type {
   MainModule,
+  ParseResult,
   PgParserModule,
   SupportedVersion,
+  WrappedDeparseResult,
   WrappedParseResult,
 } from './types/index.js';
 import { isSupportedVersion } from './util.js';
+
+type Pointer = number;
 
 export type PgParserOptions<Version extends SupportedVersion> = {
   version?: Version | number;
@@ -79,10 +83,11 @@ export class PgParser<Version extends SupportedVersion = 17> {
     const resultPtr = module._parse_sql(sqlPtr);
     module._free(sqlPtr);
 
-    const parseResult = await this.#parsePgQueryParseResult(resultPtr);
-    module._free_parse_result(resultPtr);
-
-    return parseResult;
+    try {
+      return await this.#parsePgQueryParseResult(resultPtr);
+    } finally {
+      module._free_parse_result(resultPtr);
+    }
   }
 
   /**
@@ -92,6 +97,10 @@ export class PgParser<Version extends SupportedVersion = 17> {
     resultPtr: number
   ): Promise<WrappedParseResult<Version>> {
     const module = await this.#module;
+
+    if (!resultPtr) {
+      throw new Error('result pointer is null (protobuf to json failed)');
+    }
 
     const parseTreePtr = module.getValue(resultPtr, 'i32');
     const stderrBufferPtr = module.getValue(resultPtr + 4, 'i32');
@@ -117,12 +126,75 @@ export class PgParser<Version extends SupportedVersion = 17> {
       };
     }
 
+    if (!parseTreePtr) {
+      throw new Error('parse tree is undefined');
+    }
+
     if (!tree) {
       throw new Error('both parse tree and error are undefined');
     }
 
     return {
       tree,
+      error: undefined,
+    };
+  }
+
+  async #parseJsonToProtobufResult(resultPtr: Pointer): Promise<Pointer> {
+    const module = await this.#module;
+
+    const pgQueryProtobufPtr = resultPtr;
+    const errorPtr: number = module.getValue(resultPtr + 8, 'i32');
+
+    const error = errorPtr ? module.UTF8ToString(errorPtr) : undefined;
+
+    if (error) {
+      // This is unexpected, so throw instead of returning an error
+      throw new Error(error);
+    }
+
+    return pgQueryProtobufPtr;
+  }
+
+  async deparse(
+    parseResult: ParseResult<Version>
+  ): Promise<WrappedDeparseResult> {
+    const module = await this.#module;
+
+    const json = JSON.stringify(parseResult);
+
+    const jsonPtr = module._malloc(json.length + 1); // +1 for null terminator
+    module.stringToUTF8(json, jsonPtr, json.length + 1);
+
+    console.log('json', json);
+    const deparseResultPtr: Pointer = module._deparse_sql(jsonPtr);
+
+    // Parse struct PgQueryDeparseResult from the pointer
+    const queryPtr = module.getValue(deparseResultPtr, 'i32');
+    const errorPtr = module.getValue(deparseResultPtr + 4, 'i32');
+    const error = errorPtr
+      ? await this.#parsePgQueryError(errorPtr)
+      : undefined;
+
+    if (error) {
+      module._free_deparse_result(deparseResultPtr);
+      return {
+        sql: undefined,
+        error,
+      };
+    }
+
+    const sql = queryPtr ? module.UTF8ToString(queryPtr) : undefined;
+
+    if (!sql) {
+      module._free_deparse_result(deparseResultPtr);
+      throw new Error('query is undefined');
+    }
+
+    module._free_deparse_result(deparseResultPtr);
+
+    return {
+      sql,
       error: undefined,
     };
   }

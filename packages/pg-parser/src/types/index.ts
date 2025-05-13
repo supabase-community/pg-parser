@@ -54,3 +54,15 @@ export type WrappedParseError = {
 export type WrappedParseResult<Version extends SupportedVersion> =
   | WrappedParseSuccess<Version>
   | WrappedParseError;
+
+export type WrappedDeparseSuccess = {
+  sql: string;
+  error: undefined;
+};
+
+export type WrappedDeparseError = {
+  sql: undefined;
+  error: ParseError;
+};
+
+export type WrappedDeparseResult = WrappedDeparseSuccess | WrappedDeparseError;

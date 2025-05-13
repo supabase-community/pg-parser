@@ -3,6 +3,7 @@ import type {
   Node,
   ParseResult,
   SupportedVersion,
+  WrappedDeparseResult,
   WrappedParseResult,
 } from './types/index.js';
 
@@ -38,6 +39,22 @@ export async function unwrapParseResult<Version extends SupportedVersion>(
     throw resolved.error;
   }
   return resolved.tree;
+}
+
+/**
+ * Unwraps a `WrappedDeparseResult` by throwing an error if the result
+ * contains an `error`, or otherwise returning the deparsed SQL string.
+ *
+ * Supports both synchronous and asynchronous results.
+ */
+export async function unwrapDeparseResult(
+  result: WrappedDeparseResult | Promise<WrappedDeparseResult>
+) {
+  const resolved = await result;
+  if (resolved.error) {
+    throw resolved.error;
+  }
+  return resolved.sql;
 }
 
 /**
