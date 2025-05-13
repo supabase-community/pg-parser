@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PgParser } from './pg-parser.js';
-import { unwrapResult } from './util.js';
+import { unwrapDeparseResult, unwrapParseResult } from './util.js';
 
 describe('versions', () => {
   // it('parses sql in v15', async () => {
@@ -17,13 +17,13 @@ describe('versions', () => {
 
   it('parses sql in v17', async () => {
     const pgParser = new PgParser({ version: 17 });
-    const result = await unwrapResult(pgParser.parse('SELECT 1+1 as sum'));
+    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
     expect(result.version).toBe(170004);
   });
 
   it('parses sql in v17 by default', async () => {
     const pgParser = new PgParser();
-    const result = await unwrapResult(pgParser.parse('SELECT 1+1 as sum'));
+    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
     expect(result.version).toBe(170004);
   });
 
@@ -36,7 +36,7 @@ describe('versions', () => {
 describe('parser', () => {
   it('parses sql into ast', async () => {
     const pgParser = new PgParser();
-    const result = await unwrapResult(pgParser.parse('SELECT 1+1 as sum'));
+    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
 
     expect(result).toMatchObject({
       stmts: [
@@ -85,7 +85,7 @@ describe('parser', () => {
 
   it('parse result matches types', async () => {
     const pgParser = new PgParser();
-    const result = await unwrapResult(pgParser.parse('SELECT 1+1 as sum'));
+    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
 
     expect(result.version).toBe(170004);
 
@@ -193,7 +193,20 @@ describe('parser', () => {
 
   it('throws error for invalid sql', async () => {
     const pgParser = new PgParser();
-    const resultPromise = unwrapResult(pgParser.parse('my invalid sql'));
+    const resultPromise = unwrapParseResult(pgParser.parse('my invalid sql'));
     await expect(resultPromise).rejects.toThrow('syntax error at or near "my"');
+  });
+});
+
+describe('deparser', () => {
+  it('deparses ast into sql', async () => {
+    const pgParser = new PgParser();
+    const parseResult = await unwrapParseResult(
+      pgParser.parse('SELECT 1 + 1 AS sum')
+    );
+
+    const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+
+    expect(sql).toBe('SELECT 1 + 1 AS sum');
   });
 });
