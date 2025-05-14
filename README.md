@@ -28,13 +28,12 @@ pnpm add @supabase/pg-parser
 ```typescript
 import { PgParser } from '@supabase/pg-parser';
 
-const parser = new PgParser();
+const parser = new PgParser(); // Defaults to latest version (17)
 
 // Parse a SQL query
-const sql = 'SELECT * FROM users WHERE id = 1';
-const ast = await parser.parse(sql);
+const result = await parser.parse('SELECT * FROM users WHERE id = 1');
 
-console.log(ast);
+console.log(result);
 ```
 
 ## API
@@ -53,7 +52,7 @@ const parser = new PgParser();
 - `version`: The Postgres version to use for parsing. Valid versions are `15`, `16`, or `17`. Defaults to the latest version (`17`).
 
   ```typescript
-  const parser = new PgParser({ version: '15' }); // Use Postgres 15 for parsing
+  const parser = new PgParser({ version: 15 }); // Use Postgres 15 parser
   ```
 
 ### `parse()` method
@@ -65,14 +64,9 @@ const sql = 'SELECT * FROM users WHERE id = 1';
 const result = await parser.parse(sql);
 ```
 
-This returns a `PgParserResult` object. If the parse was successful, `PgParserResult` will contain the following properties:
+This returns a `PgParserResult` object. If the parse was successful, `PgParserResult` will contain a `tree` property containing the abstract syntax tree (AST) of the parsed SQL query.
 
-- `tree`: The abstract syntax tree (AST) of the parsed SQL query.
-- `stderrBuffer`: The standard error buffer from the Postgres parser (can contain extra information about the parse).
-
-If the parse failed, `PgParserResult` will contain the following properties:
-
-- `error`: The error message from the Postgres parser.
+If the parse failed, `PgParserResult` will contain an `error` property with the error message from the Postgres parser.
 
 Use the `error` property to check if the parse was successful:
 
@@ -86,13 +80,13 @@ if (result.error) {
 
 TypeScript will correctly narrow the type of `result` based on whether there was an error or not.
 
-If you prefer throwing an error instead of returning a result object, you can wrap `parse` in the `unwrapResult` helper:
+If you prefer throwing an error instead of returning a result object, you can wrap `parse` in the `unwrapParserResult` helper:
 
 ```typescript
-import { PgParser, unwrapResult } from '@supabase/pg-parser';
+import { PgParser, unwrapParserResult } from '@supabase/pg-parser';
 const parser = new PgParser();
 const sql = 'SELECT * FROM users WHERE id = 1';
-const tree = await unwrapResult(parser.parse(sql)); // Throws an error if the parse failed
+const tree = await unwrapParserResult(parser.parse(sql)); // Throws an error if the parse failed
 console.log('Parsed AST:', tree);
 ```
 
@@ -101,7 +95,7 @@ console.log('Parsed AST:', tree);
 The `tree` AST is a JavaScript object that represents the structure of the SQL query.
 
 ```typescript
-const tree = await unwrapResult(parser.parse('SELECT 1+1 as sum'));
+const tree = await unwrapParserResult(parser.parse('SELECT 1+1 as sum'));
 
 console.log(tree);
 ```
@@ -110,82 +104,110 @@ The output will be an object that looks like this:
 
 ```typescript
 {
-  tree: {
-    stmts: [
-      {
-        stmt: {
-          SelectStmt: {
-            targetList: [
-              {
-                ResTarget: {
-                  name: 'sum',
-                  val: {
-                    A_Expr: {
-                      kind: 'AEXPR_OP',
-                      lexpr: {
-                        A_Const: {
-                          ival: {
-                            ival: 1,
-                          },
+  stmts: [
+    {
+      stmt: {
+        SelectStmt: {
+          targetList: [
+            {
+              ResTarget: {
+                name: 'sum',
+                val: {
+                  A_Expr: {
+                    kind: 'AEXPR_OP',
+                    lexpr: {
+                      A_Const: {
+                        ival: {
+                          ival: 1,
                         },
                       },
-                      name: [
-                        {
-                          String: {
-                            sval: '+',
-                          },
+                    },
+                    name: [
+                      {
+                        String: {
+                          sval: '+',
                         },
-                      ],
-                      rexpr: {
-                        A_Const: {
-                          ival: {
-                            ival: 1,
-                          },
+                      },
+                    ],
+                    rexpr: {
+                      A_Const: {
+                        ival: {
+                          ival: 1,
                         },
                       },
                     },
                   },
                 },
               },
-            ],
-          },
+            },
+          ],
         },
       },
-    ],
-  },
+    },
+  ],
 }
 ```
 
-This object will be of type `ParseResult` and will contain types for all nodes in the AST.
+This object will be of type `ParseResult` and will contain types for all nodes in the AST. Note that this type can vary slightly between Postgres versions. `PgParser` will automatically detect the version of Postgres you are using and return the correct type at compile time.
 
-Note that this type can vary slightly between Postgres versions. If you are dynamically passing a version to `PgParser` at runtime (e.g. based on your user's database version), `parse()` will return a `ParseResult` type that is a union of all possible versions since we don't know which version will be used at runtime.
+```typescript
+const parser = new PgParser({ version: 16 });
+const sql = 'SELECT * FROM users WHERE id = 1';
+const result = await unwrapParserResult(parser.parse(sql));
+
+// Result will be of type ParseResult<16>
+```
+
+If you are dynamically passing a version to `PgParser` at runtime (e.g. based on your user's database version), `parse()` will return a `ParseResult` type that is a union of all possible versions since we don't know which version will be used at compile time.
 
 ```typescript
 const version = await getPostgresVersion();
 const parser = new PgParser({ version });
 
 const sql = 'SELECT * FROM users WHERE id = 1';
-const result = await unwrapResult(parser.parse(sql));
+const result = await unwrapParserResult(parser.parse(sql));
 
 // Result will be of type ParseResult<15> | ParseResult<16> | ParseResult<17>
 ```
 
-Otherwise if you know the version at compile time, `parse()` will return the `ParseResult` type specific to that version.
+Most AST nodes are the same across versions, but if there is version-specific parsing logic you need to handle, use the `isParseResultVersion()` type guard to narrow the type of `result` based on the version:
 
 ```typescript
-const parser = new PgParser({ version: '16' });
-const sql = 'SELECT * FROM users WHERE id = 1';
-const result = await unwrapResult(parser.parse(sql));
+import { PgParser, isParseResultVersion } from '@supabase/pg-parser';
 
-// Result will be of type ParseResult<16>
+const version = await getMyPostgresVersion();
+const parser = new PgParser({ version });
+
+const sql = 'SELECT * FROM users WHERE id = 1';
+const result = await unwrapParserResult(parser.parse(sql));
+
+if (isParseResultVersion(result, 17)) {
+  // Result is now of type ParseResult<17>
+  // Handle Postgres 17 specific logic
+}
 ```
 
-```typescript
-const parser = new PgParser();
-const sql = 'SELECT * FROM users WHERE id = 1';
-const result = await unwrapResult(parser.parse(sql));
+`PgParser` will throw an error if you pass an unsupported version. You can also use `isSupportedVersion()` to manually check if a version is supported:
 
-// Result will be of type ParseResult<17>
+```typescript
+import { isSupportedVersion } from '@supabase/pg-parser';
+
+const version = await getMyPostgresVersion();
+
+if (!isSupportedVersion(version)) {
+  throw new Error(`unsupported version: ${version}`);
+}
+
+// `version` is supported, and its type has been narrowed to `15 | 16 | 17`
+console.log(version);
+```
+
+Use the `SUPPORTED_VERSIONS` constant to get a list of all supported versions:
+
+```typescript
+import { SUPPORTED_VERSIONS } from '@supabase/pg-parser';
+
+console.log(SUPPORTED_VERSIONS); // [15, 16, 17]
 ```
 
 ## Roadmap
