@@ -4,8 +4,8 @@ Postgres SQL parser that can run anywhere (Browser, Node.js, Deno, Bun, etc.).
 
 ## Features
 
-- **AST:** Parses Postgres SQL queries into an abstract syntax tree (AST)
-- **WASM:** Uses real Postgres C code compiled to WASM
+- **Parse:** Parses Postgres SQL queries into an abstract syntax tree (AST)
+- **Accurate:** Uses real Postgres C code compiled to WASM
 - **Multi-version:** Supports multiple Postgres versions at runtime (15, 16, 17)
 - **Multi-runtime:** Works on any modern JavaScript runtime (Browser, Node.js, Deno, Bun, etc.)
 
@@ -202,18 +202,44 @@ if (!isSupportedVersion(version)) {
 console.log(version);
 ```
 
-Use the `SUPPORTED_VERSIONS` constant to get a list of all supported versions:
+Use the `getSupportedVersions()` function to get a list of all supported versions:
 
 ```typescript
-import { SUPPORTED_VERSIONS } from '@supabase/pg-parser';
+import { getSupportedVersions } from '@supabase/pg-parser';
 
-console.log(SUPPORTED_VERSIONS); // [15, 16, 17]
+const supportedVersions = getSupportedVersions();
+
+console.log(supportedVersions); // [15, 16, 17]
 ```
+
+### `error` object
+
+If the parse fails, `PgParser` will return an `error` of type `ParseError` with the following properties:
+
+- `message`: A human-readable error message. (e.g., `syntax error at or near "FROM"`).
+
+- `type`: The type of parse error. Possible values are:
+
+  - `syntax`: A lexical or syntactic error, such as mismatched parentheses,
+    unterminated quotes, invalid tokens, or incorrect SQL statement structure.
+    Most SQL errors will fall into this category.
+  - `semantic`: These are rare, but can occur during specific validations like
+    numeric range checking (e.g., column numbers must be between 1 and 32767
+    in `ALTER INDEX` statements).
+  - `unknown`: An unknown error type, typically representing an internal parser error.
+
+  **Note:** The vast majority of semantic validation (type checking, schema validation,
+  constraint validation, etc.) happens after parsing and is not represented in these error types.
+
+- `position`: The position of the error in the SQL string. This is a zero-based index, so the first character is at position 0. Points to the character where the error was detected.
+
+  **Note:** This is relative to the entire SQL string, not just the statement being parsed or line numbers within a statement. If you are parsing a multi-statement query, the position will be relative to the entire query string, where newlines are counted as single characters.
 
 ## Roadmap
 
 - [ ] Deparse SQL queries (AST -> SQL)
 - [ ] Expose Postgres scanner (lexer)
+- [ ] Version compatibility checks
 
 ## License
 
