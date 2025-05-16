@@ -57,16 +57,16 @@ const parser = new PgParser();
 
 ### `parse()` method
 
-To parse a SQL query, use the `parse` method:
+To parse a SQL query, use the `parse()` method:
 
 ```typescript
 const sql = 'SELECT * FROM users WHERE id = 1';
 const result = await parser.parse(sql);
 ```
 
-This returns a `PgParserResult` object. If the parse was successful, `PgParserResult` will contain a `tree` property containing the abstract syntax tree (AST) of the parsed SQL query.
+This returns a `WrappedParseResult` object. If the parse was successful, `WrappedParseResult` will contain a `tree` property containing the abstract syntax tree (AST) of the parsed SQL query.
 
-If the parse failed, `PgParserResult` will contain an `error` property with the error message from the Postgres parser.
+If the parse failed, `WrappedParseResult` will contain an `error` property with the error message from the Postgres parser.
 
 Use the `error` property to check if the parse was successful:
 
@@ -80,13 +80,13 @@ if (result.error) {
 
 TypeScript will correctly narrow the type of `result` based on whether there was an error or not.
 
-If you prefer throwing an error instead of returning a result object, you can wrap `parse` in the `unwrapParserResult` helper:
+If you prefer throwing an error instead of returning a result object, you can wrap `parse()` in the `unwrapParseResult()` helper:
 
 ```typescript
-import { PgParser, unwrapParserResult } from '@supabase/pg-parser';
+import { PgParser, unwrapParseResult } from '@supabase/pg-parser';
 const parser = new PgParser();
 const sql = 'SELECT * FROM users WHERE id = 1';
-const tree = await unwrapParserResult(parser.parse(sql)); // Throws an error if the parse failed
+const tree = await unwrapParseResult(parser.parse(sql)); // Throws an error if the parse failed
 console.log('Parsed AST:', tree);
 ```
 
@@ -95,7 +95,7 @@ console.log('Parsed AST:', tree);
 The `tree` AST is a JavaScript object that represents the structure of the SQL query.
 
 ```typescript
-const tree = await unwrapParserResult(parser.parse('SELECT 1+1 as sum'));
+const tree = await unwrapParseResult(parser.parse('SELECT 1+1 as sum'));
 
 console.log(tree);
 ```
@@ -153,7 +153,7 @@ This object will be of type `ParseResult` and will contain types for all nodes i
 ```typescript
 const parser = new PgParser({ version: 16 });
 const sql = 'SELECT * FROM users WHERE id = 1';
-const result = await unwrapParserResult(parser.parse(sql));
+const result = await unwrapParseResult(parser.parse(sql));
 
 // Result will be of type ParseResult<16>
 ```
@@ -161,11 +161,11 @@ const result = await unwrapParserResult(parser.parse(sql));
 If you are dynamically passing a version to `PgParser` at runtime (e.g. based on your user's database version), `parse()` will return a `ParseResult` type that is a union of all possible versions since we don't know which version will be used at compile time.
 
 ```typescript
-const version = await getPostgresVersion();
+const version = await getMyPostgresVersion(); // Your logic to get the version
 const parser = new PgParser({ version });
 
 const sql = 'SELECT * FROM users WHERE id = 1';
-const result = await unwrapParserResult(parser.parse(sql));
+const result = await unwrapParseResult(parser.parse(sql));
 
 // Result will be of type ParseResult<15> | ParseResult<16> | ParseResult<17>
 ```
@@ -173,13 +173,17 @@ const result = await unwrapParserResult(parser.parse(sql));
 Most AST nodes are the same across versions, but if there is version-specific parsing logic you need to handle, use the `isParseResultVersion()` type guard to narrow the type of `result` based on the version:
 
 ```typescript
-import { PgParser, isParseResultVersion } from '@supabase/pg-parser';
+import {
+  PgParser,
+  isParseResultVersion,
+  unwrapParseResult,
+} from '@supabase/pg-parser';
 
-const version = await getMyPostgresVersion();
+const version = await getMyPostgresVersion(); // Your logic to get the version
 const parser = new PgParser({ version });
 
 const sql = 'SELECT * FROM users WHERE id = 1';
-const result = await unwrapParserResult(parser.parse(sql));
+const result = await unwrapParseResult(parser.parse(sql));
 
 if (isParseResultVersion(result, 17)) {
   // Result is now of type ParseResult<17>
