@@ -1,0 +1,32 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build libs
+        run: pnpm run build
+      - name: Get playwright version
+        run: echo "PLAYWRIGHT_VERSION=$(pnpm list @playwright/test | grep @playwright/test | awk '{print $2}')" >> $GITHUB_ENV
+      - name: Setup playwright
+        uses: ./.github/actions/setup-playwright
+        with:
+          version: ${{ env.PLAYWRIGHT_VERSION }}
+      - name: Tests
+        run: pnpm run test
