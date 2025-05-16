@@ -1,13 +1,13 @@
-import { type MainModule as MainModule15 } from '../wasm/15/pg-parser.js';
-import { type MainModule as MainModule16 } from '../wasm/16/pg-parser.js';
-import { type MainModule as MainModule17 } from '../wasm/17/pg-parser.js';
+import type { MainModule as MainModule15 } from '../wasm/15/pg-parser.js';
+import type { MainModule as MainModule16 } from '../wasm/16/pg-parser.js';
+import type { MainModule as MainModule17 } from '../wasm/17/pg-parser.js';
 
 import type { ParseResult as ParseResult15 } from '../wasm/15/pg-parser-types.js';
 import type { ParseResult as ParseResult16 } from '../wasm/16/pg-parser-types.js';
 import type { ParseResult as ParseResult17 } from '../wasm/17/pg-parser-types.js';
 
-import type { PgParseError } from './errors.js';
 import type { SUPPORTED_VERSIONS } from './constants.js';
+import type { ParseError } from './errors.js';
 
 export type SupportedVersion = (typeof SUPPORTED_VERSIONS)[number];
 
@@ -23,23 +23,24 @@ type ParseResultVersionMap = {
   17: ParseResult17;
 };
 
-export type MainModule<T extends SupportedVersion> = ModuleVersionMap[T];
+export type MainModule<Version extends SupportedVersion> =
+  ModuleVersionMap[Version];
 export type PgParserModule<T extends SupportedVersion> = (
   options?: unknown
 ) => Promise<MainModule<T>>;
+
 export type ParseResult<T extends SupportedVersion> = ParseResultVersionMap[T];
 
-export type PgParseResultSuccess<T extends SupportedVersion> = {
-  tree: ParseResult<T>;
+export type WrappedParseSuccess<Version extends SupportedVersion> = {
+  tree: ParseResult<Version>;
   error: undefined;
-  stderrBuffer?: string;
 };
 
-export type PgParseResultError = {
+export type WrappedParseError = {
   tree: undefined;
-  error: PgParseError;
+  error: ParseError;
 };
 
-export type PgParseResult<T extends SupportedVersion> =
-  | PgParseResultSuccess<T>
-  | PgParseResultError;
+export type WrappedParseResult<Version extends SupportedVersion> =
+  | WrappedParseSuccess<Version>
+  | WrappedParseError;
