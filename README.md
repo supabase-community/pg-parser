@@ -115,27 +115,9 @@ The output will be an object that looks like this:
                 val: {
                   A_Expr: {
                     kind: 'AEXPR_OP',
-                    lexpr: {
-                      A_Const: {
-                        ival: {
-                          ival: 1,
-                        },
-                      },
-                    },
-                    name: [
-                      {
-                        String: {
-                          sval: '+',
-                        },
-                      },
-                    ],
-                    rexpr: {
-                      A_Const: {
-                        ival: {
-                          ival: 1,
-                        },
-                      },
-                    },
+                    lexpr: { A_Const: { ival: { ival: 1 } } },
+                    name: [{ String: { sval: '+' } }],
+                    rexpr: { A_Const: { ival: { ival: 1 } } },
                   },
                 },
               },
