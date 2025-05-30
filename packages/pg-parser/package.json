@@ -24,7 +24,8 @@
     "test:unit:browser": "vitest --project unit:browser"
   },
   "files": [
-    "dist/**/*"
+    "dist/**/*",
+    "wasm/**/*"
   ],
   "exports": {
     ".": {
