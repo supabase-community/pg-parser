@@ -9,6 +9,13 @@ Postgres SQL parser that can run anywhere (Browser, Node.js, Deno, Bun, etc.).
 - **Multi-version:** Supports multiple Postgres versions at runtime (15, 16, 17)
 - **Multi-runtime:** Works on any modern JavaScript runtime (Browser, Node.js, Deno, Bun, etc.)
 
+## Why?
+
+There are other great JavaScript Postgres SQL parsers, but we wanted a few missing features:
+
+- **Multi-version support:** We wanted to be able to parse SQL queries for different Postgres versions at runtime, not just compile time. This means we can dynamically adapt to a user's Postgres version without needing to install multiple versions of the same package.
+- **WASM-based:** We wanted the parser to be portable across all JavaScript runtimes, including the browser, Node.js, Deno, and Bun. This allows us to use the same parser code in both client-side and server-side applications without worrying about compatibility issues or problems installing native dependencies.
+
 ## Installation
 
 ```bash
@@ -34,6 +41,8 @@ const parser = new PgParser(); // Defaults to latest version (17)
 const result = await parser.parse('SELECT * FROM users WHERE id = 1');
 
 console.log(result);
+
+// { version: 170004, stmts: [ ... ] }
 ```
 
 ## API
@@ -104,6 +113,7 @@ The output will be an object that looks like this:
 
 ```typescript
 {
+  version: 170004,
   stmts: [
     {
       stmt: {
