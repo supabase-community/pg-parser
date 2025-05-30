@@ -42,7 +42,7 @@ const result = await parser.parse('SELECT * FROM users WHERE id = 1');
 
 console.log(result);
 
-// { version: 170004, stmts: [ ... ] }
+// { tree: { version: 170004, stmts: [ ... ] } }
 ```
 
 ## API
