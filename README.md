@@ -38,11 +38,11 @@ import { PgParser } from '@supabase/pg-parser';
 const parser = new PgParser(); // Defaults to latest version (17)
 
 // Parse a SQL query
-const result = await parser.parse('SELECT * FROM users WHERE id = 1');
+const { tree } = await parser.parse('SELECT * FROM users WHERE id = 1');
 
-console.log(result);
+console.log(tree);
 
-// { tree: { version: 170004, stmts: [ ... ] } }
+// { version: 170004, stmts: [ ... ] }
 ```
 
 ## API
