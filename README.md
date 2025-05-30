@@ -4,7 +4,7 @@ Postgres SQL parser that can run anywhere (Browser, Node.js, Deno, Bun, etc.).
 
 ## Features
 
-- **Parse:** Parses Postgres SQL queries into an abstract syntax tree (AST)
+- **AST:** Parses Postgres SQL queries into an abstract syntax tree (AST)
 - **Accurate:** Uses real Postgres C code compiled to WASM
 - **Multi-version:** Supports multiple Postgres versions at runtime (15, 16, 17)
 - **Multi-runtime:** Works on any modern JavaScript runtime (Browser, Node.js, Deno, Bun, etc.)
