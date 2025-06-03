@@ -1,7 +1,7 @@
 import { stripIndent } from 'common-tags';
 import { describe, expect, it } from 'vitest';
 import { PgParser } from './pg-parser.js';
-import type { ParseResult } from './types.js';
+import type { ParseResult } from './types/index.js';
 import { isParseResultVersion, unwrapParseResult } from './util.js';
 
 describe('pg-parser', () => {

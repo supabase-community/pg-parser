@@ -10,7 +10,7 @@ export type {
   WrappedParseError,
   WrappedParseResult,
   WrappedParseSuccess,
-} from './types.js';
+} from './types/index.js';
 export {
   getSupportedVersions,
   isParseResultVersion,

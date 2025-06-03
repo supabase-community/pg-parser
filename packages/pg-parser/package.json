@@ -32,6 +32,21 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.cjs"
+    },
+    "./15/types": {
+      "import": "./dist/types/15.js",
+      "types": "./dist/types/15.ts",
+      "default": "./dist/types/15.cjs"
+    },
+    "./16/types": {
+      "import": "./dist/types/16.js",
+      "types": "./dist/types/16.ts",
+      "default": "./dist/types/16.cjs"
+    },
+    "./17/types": {
+      "import": "./dist/types/17.js",
+      "types": "./dist/types/17.ts",
+      "default": "./dist/types/17.cjs"
     }
   },
   "dependencies": {
