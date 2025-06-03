@@ -1,8 +1,12 @@
+/// <reference path="../test/types/sql.d.ts" />
+
 import { stripIndent } from 'common-tags';
 import { describe, expect, it } from 'vitest';
 import { PgParser } from './pg-parser.js';
 import type { ParseResult } from './types/index.js';
 import { isParseResultVersion, unwrapParseResult } from './util.js';
+
+import sqlDump from '../test/fixtures/dump.sql';
 
 describe('pg-parser', () => {
   it('parses sql in v15', async () => {
@@ -26,6 +30,17 @@ describe('pg-parser', () => {
   it('throws error for unsupported version', async () => {
     const create = () => new PgParser({ version: 13 });
     expect(create).toThrow('unsupported version');
+  });
+
+  it('parses large sql', async () => {
+    const pgParser = new PgParser();
+    const result = await unwrapParseResult(pgParser.parse(sqlDump));
+
+    if (!result.stmts) {
+      throw new Error('stmts not found');
+    }
+
+    expect(result.stmts.length).toBeGreaterThan(0);
   });
 
   it('parses sql into ast', async () => {
