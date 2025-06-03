@@ -6,9 +6,9 @@ import {
 import type {
   MainModule,
   PgParserModule,
-  WrappedParseResult,
   SupportedVersion,
-} from './types.js';
+  WrappedParseResult,
+} from './types/index.js';
 import { isSupportedVersion } from './util.js';
 
 export type PgParserOptions<Version extends SupportedVersion> = {

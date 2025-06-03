@@ -1,13 +1,13 @@
-import type { MainModule as MainModule15 } from '../wasm/15/pg-parser.js';
-import type { MainModule as MainModule16 } from '../wasm/16/pg-parser.js';
-import type { MainModule as MainModule17 } from '../wasm/17/pg-parser.js';
+import type { MainModule as MainModule15 } from '../../wasm/15/pg-parser.js';
+import type { MainModule as MainModule16 } from '../../wasm/16/pg-parser.js';
+import type { MainModule as MainModule17 } from '../../wasm/17/pg-parser.js';
 
-import type { ParseResult as ParseResult15 } from '../wasm/15/pg-parser-types.js';
-import type { ParseResult as ParseResult16 } from '../wasm/16/pg-parser-types.js';
-import type { ParseResult as ParseResult17 } from '../wasm/17/pg-parser-types.js';
+import type { ParseResult15 } from './15.js';
+import type { ParseResult16 } from './16.js';
+import type { ParseResult17 } from './17.js';
 
-import type { SUPPORTED_VERSIONS } from './constants.js';
-import type { ParseError } from './errors.js';
+import type { SUPPORTED_VERSIONS } from '../constants.js';
+import type { ParseError } from '../errors.js';
 
 export type SupportedVersion = (typeof SUPPORTED_VERSIONS)[number];
 

@@ -3,7 +3,7 @@ import type {
   ParseResult,
   SupportedVersion,
   WrappedParseResult,
-} from './types.js';
+} from './types/index.js';
 
 /**
  * Unwraps a `WrappedParseResult` by throwing an error if the result
