@@ -73,9 +73,14 @@ export class PgParser<Version extends SupportedVersion = 17> {
   async parse(sql: string) {
     const module = await this.#module;
 
-    const resultPtr = module.ccall('parse_sql', 'number', ['string'], [sql]);
+    const sqlPtr = module._malloc(sql.length + 1); // +1 for null terminator
+    module.stringToUTF8(sql, sqlPtr, sql.length + 1);
+
+    const resultPtr = module._parse_sql(sqlPtr);
+    module._free(sqlPtr);
+
     const parseResult = await this.#parsePgQueryParseResult(resultPtr);
-    module.ccall('free_parse_result', undefined, ['number'], [resultPtr]);
+    module._free_parse_result(resultPtr);
 
     return parseResult;
   }

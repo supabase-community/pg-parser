@@ -2,6 +2,7 @@ import { defineWorkspace } from 'vitest/config';
 
 export default defineWorkspace([
   {
+    extends: './vitest.config.ts',
     test: {
       name: 'unit:node',
       environment: 'node',
@@ -9,6 +10,7 @@ export default defineWorkspace([
     },
   },
   {
+    extends: './vitest.config.ts',
     test: {
       name: 'unit:vercel-edge',
       environment: 'edge-runtime',
@@ -16,6 +18,7 @@ export default defineWorkspace([
     },
   },
   {
+    extends: './vitest.config.ts',
     test: {
       name: 'unit:browser',
       include: ['src/**/*.{test,spec}.ts'],
