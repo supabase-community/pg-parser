@@ -4,7 +4,12 @@ import { stripIndent } from 'common-tags';
 import { describe, expect, it } from 'vitest';
 import { PgParser } from './pg-parser.js';
 import type { ParseResult } from './types/index.js';
-import { isParseResultVersion, unwrapParseResult } from './util.js';
+import {
+  assertAndUnwrapNode,
+  assertDefined,
+  isParseResultVersion,
+  unwrapParseResult,
+} from './util.js';
 
 import sqlDump from '../test/fixtures/dump.sql';
 
@@ -36,10 +41,7 @@ describe('pg-parser', () => {
     const pgParser = new PgParser();
     const result = await unwrapParseResult(pgParser.parse(sqlDump));
 
-    if (!result.stmts) {
-      throw new Error('stmts not found');
-    }
-
+    assertDefined(result.stmts, 'stmts not found');
     expect(result.stmts.length).toBeGreaterThan(0);
   });
 
@@ -79,106 +81,55 @@ describe('pg-parser', () => {
 
     expect(result.version).toBe(170004);
 
-    if (!result.stmts) {
-      throw new Error('stmts not found');
-    }
-
-    const [firstStmt] = result.stmts;
-    if (!firstStmt) {
-      throw new Error('stmts are empty');
-    }
-
     // Use type narrowing to ensure the result is of the expected type
     // These should produce compile-time errors if the types are incorrect
-    if (!firstStmt.stmt) {
-      throw new Error('stmt not found');
-    }
+    assertDefined(result.stmts, 'stmts not found');
 
-    if (!('SelectStmt' in firstStmt.stmt) || !firstStmt.stmt.SelectStmt) {
-      throw new Error('SelectStmt not found');
-    }
+    const [firstStmt] = result.stmts;
+    assertDefined(firstStmt, 'stmts are empty');
 
-    if (!('targetList' in firstStmt.stmt.SelectStmt)) {
-      throw new Error('targetList not found');
-    }
+    assertDefined(firstStmt.stmt, 'stmt not found');
 
-    if (!Array.isArray(firstStmt.stmt.SelectStmt.targetList)) {
-      throw new Error('targetList is not an array');
-    }
+    const selectStmt = assertAndUnwrapNode(firstStmt.stmt, 'SelectStmt');
+    assertDefined(selectStmt.targetList, 'targetList not found');
 
-    const [firstTarget] = firstStmt.stmt.SelectStmt.targetList;
-    if (!firstTarget) {
-      throw new Error('targetList is empty');
-    }
+    const [firstTarget] = selectStmt.targetList;
+    assertDefined(firstTarget, 'targetList is empty');
 
-    if (!('ResTarget' in firstTarget) || !firstTarget.ResTarget) {
-      throw new Error('ResTarget not found');
-    }
+    const resTarget = assertAndUnwrapNode(firstTarget, 'ResTarget');
 
-    expect(firstTarget.ResTarget.name).toBe('sum');
+    expect(resTarget.name).toBe('sum');
+    assertDefined(resTarget.val, 'val not found');
 
-    if (!firstTarget.ResTarget.val) {
-      throw new Error('val not found');
-    }
+    const aExpr = assertAndUnwrapNode(resTarget.val, 'A_Expr');
 
-    if (
-      !('A_Expr' in firstTarget.ResTarget.val) ||
-      !firstTarget.ResTarget.val.A_Expr
-    ) {
-      throw new Error('A_Expr not found');
-    }
+    expect(aExpr.kind).toBe('AEXPR_OP');
+    assertDefined(aExpr.name, 'name not found');
 
-    expect(firstTarget.ResTarget.val.A_Expr.kind).toBe('AEXPR_OP');
+    const [firstName] = aExpr.name;
+    assertDefined(firstName, 'expression name is empty');
 
-    if (!firstTarget.ResTarget.val.A_Expr.name) {
-      throw new Error('name not found');
-    }
+    const name = assertAndUnwrapNode(firstName, 'String');
 
-    const [firstName] = firstTarget.ResTarget.val.A_Expr.name;
+    expect(name.sval).toBe('+');
 
-    if (!firstName) {
-      throw new Error('expression name is empty');
-    }
+    assertDefined(aExpr.lexpr, 'left side of expression not found');
 
-    if (!('String' in firstName) || !firstName.String) {
-      throw new Error('expression name should be String');
-    }
+    const leftConst = assertAndUnwrapNode(aExpr.lexpr, 'A_Const');
+    assertDefined(
+      leftConst.ival,
+      'expected left side constant to be an integer'
+    );
+    expect(leftConst.ival.ival).toBe(1);
 
-    expect(firstName.String.sval).toBe('+');
+    assertDefined(aExpr.rexpr, 'right side of expression not found');
 
-    if (!firstTarget.ResTarget.val.A_Expr.lexpr) {
-      throw new Error('lexpr not found');
-    }
-
-    if (
-      !('A_Const' in firstTarget.ResTarget.val.A_Expr.lexpr) ||
-      !firstTarget.ResTarget.val.A_Expr.lexpr.A_Const
-    ) {
-      throw new Error('left side of expression should be A_Const');
-    }
-
-    if (!firstTarget.ResTarget.val.A_Expr.lexpr.A_Const.ival) {
-      throw new Error('expected left side constant to be an integer');
-    }
-
-    expect(firstTarget.ResTarget.val.A_Expr.lexpr.A_Const.ival.ival).toBe(1);
-
-    if (!firstTarget.ResTarget.val.A_Expr.rexpr) {
-      throw new Error('rexpr not found');
-    }
-
-    if (
-      !('A_Const' in firstTarget.ResTarget.val.A_Expr.rexpr) ||
-      !firstTarget.ResTarget.val.A_Expr.rexpr.A_Const
-    ) {
-      throw new Error('right side of expression should be A_Const');
-    }
-
-    if (!firstTarget.ResTarget.val.A_Expr.rexpr.A_Const.ival) {
-      throw new Error('expected right side constant to be an integer');
-    }
-
-    expect(firstTarget.ResTarget.val.A_Expr.rexpr.A_Const.ival.ival).toBe(1);
+    const rightConst = assertAndUnwrapNode(aExpr.rexpr, 'A_Const');
+    assertDefined(
+      rightConst.ival,
+      'expected right side constant to be an integer'
+    );
+    expect(rightConst.ival.ival).toBe(1);
   });
 
   it('narrows type using isParseResultVersion', async () => {
