@@ -15,5 +15,6 @@ export {
   getSupportedVersions,
   isParseResultVersion,
   isSupportedVersion,
+  unwrapNode,
   unwrapParseResult,
 } from './util.js';
