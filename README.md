@@ -303,16 +303,16 @@ const { type, node } = unwrapNode(wrappedStatement);
 
 switch (type) {
   case 'SelectStmt':
-    // `node` is now narrowed to `SelectStmt`
+    // Now `node` is narrowed to `SelectStmt`
     break;
   case 'InsertStmt':
-    // `node` is now narrowed to `InsertStmt`
+    // Now `node` is narrowed to `InsertStmt`
     break;
   case 'UpdateStmt':
-    // `node` is now narrowed to `UpdateStmt`
+    // Now `node` is narrowed to `UpdateStmt`
     break;
   case 'DeleteStmt':
-    // `node` is now narrowed to `DeleteStmt`
+    // Now `node` is narrowed to `DeleteStmt`
     break;
 }
 ```

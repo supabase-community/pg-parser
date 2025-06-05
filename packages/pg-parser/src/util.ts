@@ -13,13 +13,13 @@ type ExtractKeys<T> = T extends T ? keyof T : never;
 
 /**
  * Unwraps a Node to get its underlying value based on
- * the type of the node.
+ * the specified type of the node.
  */
 export type NodeValue<T extends Node, U extends ExtractKeys<T>> =
   T extends Record<U, infer V> ? V : never;
 
 /**
- * UnwrappedNode type represents a node with its type and value.
+ * Unwraps a Node into its type and value.
  */
 export type UnwrappedNode<T extends Node> =
   T extends Record<infer K, infer V> ? { type: K; node: V } : never;
@@ -103,10 +103,7 @@ export function assertDefined<T>(
  *
  * @example
  * const tree = await unwrapParseResult(parser.parse('SELECT 1'));
- *
- * const firstStmt = tree.stmts?.[0]?.stmt;
- * assertDefined(firstStmt, 'expected a statement');
- *
+ * const firstStmt = tree.stmts.[0].stmt;
  * const { type, node } = unwrapNode(firstStmt);
  *
  * switch (type) {
