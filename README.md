@@ -231,6 +231,92 @@ If the parse fails, `PgParser` will return an `error` of type `ParseError` with 
 
   **Note:** This is relative to the entire SQL string, not just the statement being parsed or line numbers within a statement. If you are parsing a multi-statement query, the position will be relative to the entire query string, where newlines are counted as single characters.
 
+### Utility functions
+
+The following utility functions are available to help with parsing:
+
+#### `unwrapNode()`
+
+Extracts the node type and nested value while preserving type information.
+
+```typescript
+import { unwrapNode } from '@supabase/pg-parser';
+
+const wrappedStatement = result.tree.stmts[0].stmt;
+// { SelectStmt: { ... } }
+
+const { type, node } = unwrapNode(wrappedStatement);
+// { type: 'SelectStmt', node: { ... } }
+```
+
+**Background:** The AST structure produced by Postgres ([libpg_query](https://github.com/pganalyze/libpg_query)) can be complex due to nesting. For example, a `SELECT` statement is represented as:
+
+```typescript
+{
+  version: 170004,
+  stmts: [
+    {
+      stmt: {
+        SelectStmt: {
+          targetList: [ ... ],
+          fromClause: [ ... ],
+          whereClause: { ... },
+          ...
+        }
+      }
+    }
+  ]
+}
+```
+
+In order to determine which statement type is being parsed, you'd have to use the `in` operator to check for the presence of a specific key:
+
+```typescript
+const wrappedStatement = result.tree.stmts[0].stmt;
+// e.g. { SelectStmt: { ... } }
+
+if ('SelectStmt' in wrappedStatement) {
+  // It's a SELECT statement
+  const selectStmt = wrappedStatement.SelectStmt;
+} else if ('InsertStmt' in wrappedStatement) {
+  // It's an INSERT statement
+  const insertStmt = wrappedStatement.InsertStmt;
+} else if ('UpdateStmt' in wrappedStatement) {
+  // It's an UPDATE statement
+  const updateStmt = wrappedStatement.UpdateStmt;
+} else if ('DeleteStmt' in wrappedStatement) {
+  // It's a DELETE statement
+  const deleteStmt = wrappedStatement.DeleteStmt;
+}
+```
+
+`unwrapNode()` simplifies this by extracting the node type and nested value in a single step:
+
+```typescript
+const { type, node } = unwrapNode(wrappedStatement);
+```
+
+You can then use `type` to determine which statement it is and narrow the type of `node` accordingly:
+
+```typescript
+const { type, node } = unwrapNode(wrappedStatement);
+
+switch (type) {
+  case 'SelectStmt':
+    // `node` is now narrowed to `SelectStmt`
+    break;
+  case 'InsertStmt':
+    // `node` is now narrowed to `InsertStmt`
+    break;
+  case 'UpdateStmt':
+    // `node` is now narrowed to `UpdateStmt`
+    break;
+  case 'DeleteStmt':
+    // `node` is now narrowed to `DeleteStmt`
+    break;
+}
+```
+
 ## Roadmap
 
 - [ ] Deparse SQL queries (AST -> SQL)
