@@ -29,23 +29,23 @@
   ],
   "exports": {
     ".": {
-      "import": "./dist/index.js",
       "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
       "default": "./dist/index.cjs"
     },
     "./15/types": {
+      "types": "./dist/types/15.d.ts",
       "import": "./dist/types/15.js",
-      "types": "./dist/types/15.ts",
       "default": "./dist/types/15.cjs"
     },
     "./16/types": {
+      "types": "./dist/types/16.d.ts",
       "import": "./dist/types/16.js",
-      "types": "./dist/types/16.ts",
       "default": "./dist/types/16.cjs"
     },
     "./17/types": {
+      "types": "./dist/types/17.d.ts",
       "import": "./dist/types/17.js",
-      "types": "./dist/types/17.ts",
       "default": "./dist/types/17.cjs"
     }
   },
