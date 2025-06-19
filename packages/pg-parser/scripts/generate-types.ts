@@ -32,13 +32,13 @@ const options: PgProtoParserOptions = {
     enabled: true,
     wrappedNodeTypeExport: true,
     optionalFields: true,
-    filename: 'pg-parser-types.ts',
+    filename: 'pg-parser-types.d.ts',
     enumsSource: './pg-parser-enums.js',
   },
   enums: {
     enabled: true,
     enumsAsTypeUnion: true,
-    filename: 'pg-parser-enums.ts',
+    filename: 'pg-parser-enums.d.ts',
   },
 };
 
