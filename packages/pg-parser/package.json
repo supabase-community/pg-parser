@@ -62,7 +62,7 @@
     "common-tags": "^1.8.2",
     "mkdirp": "^3.0.1",
     "pg-proto-parser": "^1.24.0",
-    "playwright": "^1.52.0",
+    "playwright": "^1.55.1",
     "prettier": "^3.3.3",
     "tsup": "^8.3.5",
     "typescript": "^5.6.3",
