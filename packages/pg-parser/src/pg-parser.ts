@@ -1,4 +1,5 @@
 import {
+  DeparseError,
   getParseErrorType,
   ParseError,
   type ParseErrorType,
@@ -14,6 +15,8 @@ import type {
 import { isSupportedVersion } from './util.js';
 
 type Pointer = number;
+
+const textEncoder = new TextEncoder();
 
 export type PgParserOptions<Version extends SupportedVersion> = {
   version?: Version | number;
@@ -36,6 +39,15 @@ export class PgParser<Version extends SupportedVersion = 17> {
     this.#module = this.#init(version);
     this.ready = this.#module.then();
     this.version = version as Version;
+  }
+
+  /**
+   * Returns the current WASM heap size in bytes.
+   * Useful for detecting memory leaks in tests.
+   */
+  async getHeapSize(): Promise<number> {
+    const module = await this.#module;
+    return module.HEAP8.length;
   }
 
   /**
@@ -77,8 +89,10 @@ export class PgParser<Version extends SupportedVersion = 17> {
   async parse(sql: string) {
     const module = await this.#module;
 
-    const sqlPtr = module._malloc(sql.length + 1); // +1 for null terminator
-    module.stringToUTF8(sql, sqlPtr, sql.length + 1);
+    const sqlBytes = textEncoder.encode(sql);
+    const sqlPtr = module._malloc(sqlBytes.length + 1); // +1 for null terminator
+    module.HEAP8.set(sqlBytes, sqlPtr);
+    module.HEAP8[sqlPtr + sqlBytes.length] = 0; // null terminator
 
     const resultPtr = module._parse_sql(sqlPtr);
     module._free(sqlPtr);
@@ -140,22 +154,6 @@ export class PgParser<Version extends SupportedVersion = 17> {
     };
   }
 
-  async #parseJsonToProtobufResult(resultPtr: Pointer): Promise<Pointer> {
-    const module = await this.#module;
-
-    const pgQueryProtobufPtr = resultPtr;
-    const errorPtr: number = module.getValue(resultPtr + 8, 'i32');
-
-    const error = errorPtr ? module.UTF8ToString(errorPtr) : undefined;
-
-    if (error) {
-      // This is unexpected, so throw instead of returning an error
-      throw new Error(error);
-    }
-
-    return pgQueryProtobufPtr;
-  }
-
   async deparse(
     parseResult: ParseResult<Version>
   ): Promise<WrappedDeparseResult> {
@@ -163,40 +161,46 @@ export class PgParser<Version extends SupportedVersion = 17> {
 
     const json = JSON.stringify(parseResult);
 
-    const jsonPtr = module._malloc(json.length + 1); // +1 for null terminator
-    module.stringToUTF8(json, jsonPtr, json.length + 1);
+    const jsonBytes = textEncoder.encode(json);
+    const jsonPtr = module._malloc(jsonBytes.length + 1); // +1 for null terminator
+    module.HEAP8.set(jsonBytes, jsonPtr);
+    module.HEAP8[jsonPtr + jsonBytes.length] = 0; // null terminator
 
-    console.log('json', json);
     const deparseResultPtr: Pointer = module._deparse_sql(jsonPtr);
+    module._free(jsonPtr);
 
-    // Parse struct PgQueryDeparseResult from the pointer
-    const queryPtr = module.getValue(deparseResultPtr, 'i32');
-    const errorPtr = module.getValue(deparseResultPtr + 4, 'i32');
-    const error = errorPtr
-      ? await this.#parsePgQueryError(errorPtr)
-      : undefined;
+    if (!deparseResultPtr) {
+      throw new Error('deparse failed: null result pointer');
+    }
 
-    if (error) {
-      module._free_deparse_result(deparseResultPtr);
+    try {
+      // Parse struct PgQueryDeparseResult from the pointer
+      const queryPtr = module.getValue(deparseResultPtr, 'i32');
+      const errorPtr = module.getValue(deparseResultPtr + 4, 'i32');
+      const error = errorPtr
+        ? await this.#parseDeparseError(errorPtr)
+        : undefined;
+
+      if (error) {
+        return {
+          sql: undefined,
+          error,
+        };
+      }
+
+      const sql = queryPtr ? module.UTF8ToString(queryPtr) : undefined;
+
+      if (!sql) {
+        throw new Error('query is undefined');
+      }
+
       return {
-        sql: undefined,
-        error,
+        sql,
+        error: undefined,
       };
-    }
-
-    const sql = queryPtr ? module.UTF8ToString(queryPtr) : undefined;
-
-    if (!sql) {
+    } finally {
       module._free_deparse_result(deparseResultPtr);
-      throw new Error('query is undefined');
     }
-
-    module._free_deparse_result(deparseResultPtr);
-
-    return {
-      sql,
-      error: undefined,
-    };
   }
 
   /**
@@ -222,7 +226,8 @@ export class PgParser<Version extends SupportedVersion = 17> {
 
     const messagePtr = module.getValue(errorPtr, 'i32');
     const fileNamePtr = module.getValue(errorPtr + 8, 'i32');
-    const position = module.getValue(errorPtr + 16, 'i32') - 1; // Convert to zero-based index
+    const cursorpos = module.getValue(errorPtr + 16, 'i32');
+    const position = cursorpos > 0 ? cursorpos - 1 : 0; // Convert 1-based to 0-based
 
     const message = messagePtr
       ? module.UTF8ToString(messagePtr)
@@ -231,11 +236,22 @@ export class PgParser<Version extends SupportedVersion = 17> {
       ? getParseErrorType(module.UTF8ToString(fileNamePtr))
       : 'unknown';
 
-    const error = new ParseError(message, {
-      type,
-      position,
-    });
+    return new ParseError(message, { type, position });
+  }
 
-    return error;
+  /**
+   * Reads a PgQueryError struct from a pointer and returns a DeparseError.
+   * Only reads the message field since deparse errors don't have
+   * meaningful position or type information.
+   */
+  async #parseDeparseError(errorPtr: number) {
+    const module = await this.#module;
+
+    const messagePtr = module.getValue(errorPtr, 'i32');
+    const message = messagePtr
+      ? module.UTF8ToString(messagePtr)
+      : 'unknown error';
+
+    return new DeparseError(message);
   }
 }

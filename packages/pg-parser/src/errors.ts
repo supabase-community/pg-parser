@@ -41,6 +41,16 @@ export class ParseError extends Error {
 }
 
 /**
+ * An error that occurred while deparsing an AST back to SQL.
+ *
+ * Unlike `ParseError`, deparse errors don't have a position or type
+ * since they operate on an AST rather than a SQL string.
+ */
+export class DeparseError extends Error {
+  override readonly name = 'DeparseError';
+}
+
+/**
  * Get the type of parse error based on the internal file name
  * returned from libpg_query.
  */

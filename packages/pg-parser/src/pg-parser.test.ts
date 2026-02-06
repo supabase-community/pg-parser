@@ -14,38 +14,8 @@ import {
 
 import sqlDump from '../test/fixtures/dump.sql';
 
-describe('demo', () => {
-  it('demo', async () => {
-    const pgParser = new PgParser();
-    const result = await unwrapParseResult(
-      pgParser.parse(
-        'SELECT id, content FROM blog_posts ORDER BY created_at DESC'
-      )
-    );
-    console.dir(result, { depth: null });
-  });
-});
-
-describe('versions', () => {
-  it('parses sql in v15', async () => {
-    const pgParser = new PgParser({ version: 15 });
-    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
-    expect(result.version).toBe(150001);
-  });
-
-  it('parses sql in v16', async () => {
-    const pgParser = new PgParser({ version: 16 });
-    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
-    expect(result.version).toBe(160001);
-  });
-
-  it('parses sql in v17', async () => {
-    const pgParser = new PgParser({ version: 17 });
-    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
-    expect(result.version).toBe(170004);
-  });
-
-  it('parses sql in v17 by default', async () => {
+describe('parser', () => {
+  it('defaults to v17', async () => {
     const pgParser = new PgParser();
     const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
     expect(result.version).toBe(170004);
@@ -56,19 +26,27 @@ describe('versions', () => {
     expect(create).toThrow('unsupported version');
   });
 
-  it('parses large sql', async () => {
-    const pgParser = new PgParser();
-    const result = await unwrapParseResult(pgParser.parse(sqlDump));
+  it('narrows type using isParseResultVersion', async () => {
+    const pgParser = new PgParser({ version: 17 as number });
 
-    assertDefined(result.stmts, 'stmts not found');
-    expect(result.stmts.length).toBeGreaterThan(0);
+    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
+
+    if (isParseResultVersion(result, 17)) {
+      const version17Result: ParseResult<17> = result;
+      expect(version17Result.version).toBe(170004);
+    } else {
+      throw new Error('result is not version 17');
+    }
   });
 });
 
-describe('parser', () => {
+describe.each([15, 16, 17])('parser (v%i)', (version) => {
+  const pgParser = new PgParser({ version }) as PgParser;
+
   it('parses sql into ast', async () => {
-    const pgParser = new PgParser();
-    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
+    const result = await unwrapParseResult(
+      pgParser.parse('SELECT 1+1 as sum'),
+    );
     expect(result).toMatchObject({
       stmts: [
         {
@@ -96,19 +74,15 @@ describe('parser', () => {
     });
   });
 
-  it('parse result matches types', async () => {
-    const pgParser = new PgParser();
-    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
+  it('walks the parse tree with type narrowing', async () => {
+    const result = await unwrapParseResult(
+      pgParser.parse('SELECT 1+1 as sum'),
+    );
 
-    expect(result.version).toBe(170004);
-
-    // Use type narrowing to ensure the result is of the expected type
-    // These should produce compile-time errors if the types are incorrect
     assertDefined(result.stmts, 'stmts not found');
 
     const [firstStmt] = result.stmts;
     assertDefined(firstStmt, 'stmts are empty');
-
     assertDefined(firstStmt.stmt, 'stmt not found');
 
     const selectStmt = assertAndUnwrapNode(firstStmt.stmt, 'SelectStmt');
@@ -118,12 +92,10 @@ describe('parser', () => {
     assertDefined(firstTarget, 'targetList is empty');
 
     const resTarget = assertAndUnwrapNode(firstTarget, 'ResTarget');
-
     expect(resTarget.name).toBe('sum');
     assertDefined(resTarget.val, 'val not found');
 
     const aExpr = assertAndUnwrapNode(resTarget.val, 'A_Expr');
-
     expect(aExpr.kind).toBe('AEXPR_OP');
     assertDefined(aExpr.name, 'name not found');
 
@@ -131,51 +103,35 @@ describe('parser', () => {
     assertDefined(firstName, 'expression name is empty');
 
     const name = assertAndUnwrapNode(firstName, 'String');
-
     expect(name.sval).toBe('+');
 
     assertDefined(aExpr.lexpr, 'left side of expression not found');
-
     const leftConst = assertAndUnwrapNode(aExpr.lexpr, 'A_Const');
-    assertDefined(
-      leftConst.ival,
-      'expected left side constant to be an integer'
-    );
+    assertDefined(leftConst.ival, 'expected left side constant to be an integer');
     expect(leftConst.ival.ival).toBe(1);
 
     assertDefined(aExpr.rexpr, 'right side of expression not found');
-
     const rightConst = assertAndUnwrapNode(aExpr.rexpr, 'A_Const');
-    assertDefined(
-      rightConst.ival,
-      'expected right side constant to be an integer'
-    );
+    assertDefined(rightConst.ival, 'expected right side constant to be an integer');
     expect(rightConst.ival.ival).toBe(1);
   });
 
-  it('narrows type using isParseResultVersion', async () => {
-    const pgParser = new PgParser({ version: 17 as number });
+  it('parses large sql', async () => {
+    const result = await unwrapParseResult(pgParser.parse(sqlDump));
 
-    const result = await unwrapParseResult(pgParser.parse('SELECT 1+1 as sum'));
-
-    if (isParseResultVersion(result, 17)) {
-      // The next statement will contain a type error if the version is not 17
-      const version17Result: ParseResult<17> = result;
-      expect(version17Result.version).toBe(170004);
-    } else {
-      throw new Error('result is not version 17');
-    }
+    assertDefined(result.stmts, 'stmts not found');
+    expect(result.stmts.length).toBeGreaterThan(0);
   });
 
   it('throws error for invalid sql', async () => {
-    const pgParser = new PgParser();
     const resultPromise = unwrapParseResult(pgParser.parse('my invalid sql'));
-    await expect(resultPromise).rejects.toThrow('syntax error at or near "my"');
+    await expect(resultPromise).rejects.toThrow(
+      'syntax error at or near "my"',
+    );
   });
 
-  it('throws an error when sql contains a syntax error', async () => {
-    const pgParser = new PgParser();
-    const result = await pgParser.parse(`invalid sql statement`);
+  it('reports syntax errors', async () => {
+    const result = await pgParser.parse('invalid sql statement');
 
     if (!result.error) {
       throw new Error('error not found');
@@ -184,10 +140,9 @@ describe('parser', () => {
     expect(result.error.type).toBe('syntax');
   });
 
-  it('throws an error when sql contains a semantic error', async () => {
-    const pgParser = new PgParser();
+  it('reports semantic errors', async () => {
     const result = await pgParser.parse(
-      'ALTER INDEX my_idx ALTER COLUMN 0 SET STATISTICS 1000;'
+      'ALTER INDEX my_idx ALTER COLUMN 0 SET STATISTICS 1000;',
     );
 
     if (!result.error) {
@@ -199,14 +154,12 @@ describe('parser', () => {
 
   it('uses zero-based position in error', async () => {
     const sql = 'SELECT my_column, FROM my_table;';
-    const pgParser = new PgParser();
     const result = await pgParser.parse(sql);
 
     if (!result.error) {
       throw new Error('error not found');
     }
 
-    // Error will be at the start of "FROM"
     const expectedPosition = sql.indexOf('FROM');
     expect(result.error.position).toBe(expectedPosition);
   });
@@ -222,28 +175,372 @@ describe('parser', () => {
       WHERE my_column = 1;
     `;
 
-    const pgParser = new PgParser();
     const result = await pgParser.parse(sql);
 
     if (!result.error) {
       throw new Error('error not found');
     }
 
-    // Error will be at the start of the second "FROM" relative to the entire SQL string
     const expectedPosition = sql.indexOf('FROM', sql.indexOf('my_table_1'));
     expect(result.error.position).toBe(expectedPosition);
   });
 });
 
-describe('deparser', () => {
-  it('deparses ast into sql', async () => {
-    const pgParser = new PgParser();
-    const parseResult = await unwrapParseResult(
-      pgParser.parse('SELECT 1 + 1 AS sum')
-    );
+describe.each([15, 16, 17])('deparser (v%i)', (version) => {
+  // Cast to PgParser (defaults to v17 types) to avoid union type explosion
+  // when version is dynamic. Runtime behavior is tested for all versions.
+  const pgParser = new PgParser({ version }) as PgParser;
 
+  /**
+   * Parses SQL, deparses the AST, and asserts the result matches expected output.
+   * If no expected output is provided, asserts an identity roundtrip (output === input).
+   */
+  async function expectRoundtrip(input: string, expected?: string) {
+    const parseResult = await unwrapParseResult(pgParser.parse(input));
     const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+    expect(sql).toBe(expected ?? input);
+    return sql;
+  }
 
-    expect(sql).toBe('SELECT 1 + 1 AS sum');
+  describe('select', () => {
+    it.each([
+      'SELECT 1 + 1 AS sum',
+      'SELECT id, name FROM users WHERE id = 1',
+      'SELECT u.id, p.title FROM users u JOIN posts p ON u.id = p.user_id',
+      'SELECT u.id, p.title FROM users u LEFT JOIN posts p ON u.id = p.user_id',
+      'SELECT id, name FROM users ORDER BY name ASC LIMIT 10 OFFSET 20',
+      'SELECT DISTINCT name FROM users',
+      'WITH active_users AS (SELECT id, name FROM users WHERE active = true) SELECT * FROM active_users',
+      'SELECT id FROM users UNION SELECT id FROM admins',
+      'SELECT id FROM users UNION ALL SELECT id FROM admins',
+      'SELECT id FROM users INTERSECT SELECT id FROM admins',
+      "SELECT CASE WHEN status = 1 THEN 'active' WHEN status = 2 THEN 'inactive' ELSE 'unknown' END AS label FROM users",
+      "SELECT '2024-01-01'::date",
+      'SELECT * FROM users WHERE id IN (1, 2, 3)',
+      'SELECT * FROM users WHERE age BETWEEN 18 AND 65',
+      "SELECT * FROM users WHERE name LIKE 'Jo%'",
+      'SELECT * FROM users u WHERE EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id)',
+      "SELECT COALESCE(nickname, name, 'anonymous') FROM users",
+      'SELECT * FROM users WHERE id = 1 FOR UPDATE',
+      "SELECT 'café' AS name",
+      "SELECT * FROM users WHERE name = '日本語テスト'",
+      "SELECT '🚀' AS emoji",
+    ])('roundtrips: %s', async (sql) => {
+      await expectRoundtrip(sql);
+    });
+
+    it.each([
+      [
+        'SELECT department, COUNT(*) AS cnt FROM employees GROUP BY department HAVING COUNT(*) > 5',
+        'SELECT department, count(*) AS cnt FROM employees GROUP BY department HAVING count(*) > 5',
+      ],
+      [
+        'SELECT * FROM (SELECT id, name FROM users) AS sub',
+        'SELECT * FROM (SELECT id, name FROM users) sub',
+      ],
+      [
+        'SELECT id, ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary DESC) AS rn FROM employees',
+        'SELECT id, row_number() OVER (PARTITION BY department ORDER BY salary DESC) AS rn FROM employees',
+      ],
+      [
+        'SELECT COUNT(*), SUM(amount), AVG(amount), MIN(amount), MAX(amount) FROM orders',
+        'SELECT count(*), sum(amount), avg(amount), min(amount), max(amount) FROM orders',
+      ],
+    ])('normalizes: %s', async (input, expected) => {
+      await expectRoundtrip(input, expected);
+    });
+  });
+
+  describe('insert', () => {
+    it.each([
+      "INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')",
+      "INSERT INTO users (name) VALUES ('Bob') RETURNING id",
+      'INSERT INTO archive (id, name) SELECT id, name FROM users WHERE active = false',
+    ])('roundtrips: %s', async (sql) => {
+      await expectRoundtrip(sql);
+    });
+
+    it('normalizes EXCLUDED to lowercase', async () => {
+      await expectRoundtrip(
+        "INSERT INTO users (id, name) VALUES (1, 'Alice') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name",
+        "INSERT INTO users (id, name) VALUES (1, 'Alice') ON CONFLICT (id) DO UPDATE SET name = excluded.name",
+      );
+    });
+  });
+
+  describe('update', () => {
+    it.each([
+      "UPDATE users SET name = 'Alice' WHERE id = 1",
+      "UPDATE users SET name = 'Alice', email = 'alice@example.com' WHERE id = 1",
+      "UPDATE users SET name = 'Alice' WHERE id = 1 RETURNING *",
+      'UPDATE users SET department = d.name FROM departments d WHERE users.dept_id = d.id',
+    ])('roundtrips: %s', async (sql) => {
+      await expectRoundtrip(sql);
+    });
+  });
+
+  describe('delete', () => {
+    it.each([
+      'DELETE FROM users WHERE id = 1',
+      'DELETE FROM users WHERE id = 1 RETURNING *',
+      'DELETE FROM orders USING users WHERE orders.user_id = users.id AND users.active = false',
+    ])('roundtrips: %s', async (sql) => {
+      await expectRoundtrip(sql);
+    });
+  });
+
+  describe('DDL', () => {
+    it.each([
+      'CREATE TABLE users (id serial PRIMARY KEY, name text NOT NULL, email text UNIQUE)',
+      "CREATE TABLE users (id serial PRIMARY KEY, name text DEFAULT 'anon', created_at timestamptz DEFAULT now())",
+      'DROP TABLE IF EXISTS users CASCADE',
+      'CREATE SCHEMA myapp',
+      'CREATE VIEW active_users AS SELECT id, name FROM users WHERE active = true',
+    ])('roundtrips: %s', async (sql) => {
+      await expectRoundtrip(sql);
+    });
+
+    it.each([
+      [
+        'CREATE TABLE posts (id serial PRIMARY KEY, user_id integer REFERENCES users (id))',
+        'CREATE TABLE posts (id serial PRIMARY KEY, user_id int REFERENCES users (id))',
+      ],
+      [
+        'CREATE INDEX idx_users_name ON users (name)',
+        'CREATE INDEX idx_users_name ON users USING btree (name)',
+      ],
+      [
+        'CREATE UNIQUE INDEX idx_users_email ON users (email)',
+        'CREATE UNIQUE INDEX idx_users_email ON users USING btree (email)',
+      ],
+      [
+        'ALTER TABLE users ADD COLUMN age integer',
+        'ALTER TABLE users ADD COLUMN age int',
+      ],
+      ['ALTER TABLE users DROP COLUMN age', 'ALTER TABLE users DROP age'],
+    ])('normalizes: %s', async (input, expected) => {
+      await expectRoundtrip(input, expected);
+    });
+  });
+
+  describe('multiple statements', () => {
+    it('roundtrips multiple statements', async () => {
+      await expectRoundtrip(
+        "INSERT INTO users (name) VALUES ('Alice'); SELECT * FROM users",
+      );
+    });
+  });
+
+  describe('AST manipulation', () => {
+    it('renames a column alias', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT 1 + 1 AS sum'),
+      );
+
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      resTarget.name = 'total';
+
+      const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+      expect(sql).toBe('SELECT 1 + 1 AS total');
+    });
+
+    it('adds a column to a select', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT id FROM users'),
+      );
+
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+
+      selectStmt.targetList!.push({
+        ResTarget: {
+          name: 'email',
+          val: { ColumnRef: { fields: [{ String: { sval: 'email' } }] } },
+        },
+      } as any);
+
+      const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+      expect(sql).toBe('SELECT id, email AS email FROM users');
+    });
+
+    it('changes a table name', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT * FROM users'),
+      );
+
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const rangeVar = assertAndUnwrapNode(
+        selectStmt.fromClause![0]!,
+        'RangeVar',
+      );
+      rangeVar.relname = 'accounts';
+
+      const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+      expect(sql).toBe('SELECT * FROM accounts');
+    });
+
+    it('removes a where clause', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT * FROM users WHERE active = true'),
+      );
+
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      delete selectStmt.whereClause;
+
+      const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+      expect(sql).toBe('SELECT * FROM users');
+    });
+
+    it('changes a constant value', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT * FROM users WHERE id = 1'),
+      );
+
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const aExpr = assertAndUnwrapNode(selectStmt.whereClause!, 'A_Expr');
+      const rConst = assertAndUnwrapNode(aExpr.rexpr!, 'A_Const');
+      rConst.ival = { ival: 42 };
+
+      const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+      expect(sql).toBe('SELECT * FROM users WHERE id = 42');
+    });
+  });
+
+  describe('large sql', () => {
+    it('roundtrips a large sql dump', async () => {
+      const parseResult = await unwrapParseResult(pgParser.parse(sqlDump));
+
+      assertDefined(parseResult.stmts, 'stmts not found');
+      expect(parseResult.stmts.length).toBeGreaterThan(0);
+
+      const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+
+      // Verify the deparsed output re-parses successfully with the same number of statements
+      const reparseResult = await unwrapParseResult(pgParser.parse(sql));
+      assertDefined(reparseResult.stmts, 'reparsed stmts not found');
+      expect(reparseResult.stmts.length).toBe(parseResult.stmts.length);
+    });
+  });
+
+  describe('roundtrip stability', () => {
+    it('double roundtrip produces stable output', async () => {
+      const input =
+        'SELECT u.id, p.title FROM users u LEFT JOIN posts p ON u.id = p.user_id WHERE u.active = true ORDER BY u.id';
+      const first = await expectRoundtrip(input);
+      const second = await expectRoundtrip(first);
+      expect(second).toBe(first);
+    });
+  });
+
+  describe('errors', () => {
+    it('returns error when repeated field receives wrong type', async () => {
+      const result = await pgParser.deparse({
+        stmts: [{ stmt: { SelectStmt: { targetList: 'not an array' } } }],
+      } as any);
+
+      expect(result.error).toBeDefined();
+      expect(result.error!.name).toBe('DeparseError');
+      expect(result.error!.message).toContain('is not an array');
+    });
+
+    it('returns error when integer field receives wrong type', async () => {
+      const result = await pgParser.deparse({
+        version: 'not a number',
+        stmts: [],
+      } as any);
+
+      expect(result.error).toBeDefined();
+      expect(result.error!.name).toBe('DeparseError');
+      expect(result.error!.message).toContain(
+        'is not an integer required for GPB',
+      );
+    });
+
+    it('returns error via unwrapDeparseResult for invalid AST', async () => {
+      const resultPromise = unwrapDeparseResult(
+        pgParser.deparse({
+          stmts: [{ stmt: { SelectStmt: { targetList: 'not an array' } } }],
+        } as any),
+      );
+
+      await expect(resultPromise).rejects.toThrow('is not an array');
+    });
+  });
+
+  describe('memory', () => {
+    it('does not leak memory during repeated parse operations', async () => {
+      // Warm up (first parse may allocate lazy structures)
+      await unwrapParseResult(pgParser.parse('SELECT 1'));
+
+      const heapBefore = await pgParser.getHeapSize();
+
+      for (let i = 0; i < 1000; i++) {
+        await unwrapParseResult(pgParser.parse('SELECT 1'));
+      }
+
+      const heapAfter = await pgParser.getHeapSize();
+
+      // Allow up to 1 WASM page (64 KB) of growth for internal allocator overhead
+      expect(heapAfter - heapBefore).toBeLessThan(64 * 1024);
+    });
+
+    it('does not leak memory during repeated deparse operations', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT id, name FROM users WHERE active = true'),
+      );
+
+      // Warm up
+      await unwrapDeparseResult(pgParser.deparse(parseResult));
+
+      const heapBefore = await pgParser.getHeapSize();
+
+      for (let i = 0; i < 1000; i++) {
+        await unwrapDeparseResult(pgParser.deparse(parseResult));
+      }
+
+      const heapAfter = await pgParser.getHeapSize();
+
+      // Allow up to 1 WASM page (64 KB) of growth for internal allocator overhead
+      expect(heapAfter - heapBefore).toBeLessThan(64 * 1024);
+    });
+
+    it('does not leak memory during repeated roundtrip operations', async () => {
+      const sql =
+        'SELECT u.id, p.title FROM users u JOIN posts p ON u.id = p.user_id WHERE u.active = true';
+
+      // Warm up
+      const warmupResult = await unwrapParseResult(pgParser.parse(sql));
+      await unwrapDeparseResult(pgParser.deparse(warmupResult));
+
+      const heapBefore = await pgParser.getHeapSize();
+
+      for (let i = 0; i < 1000; i++) {
+        const parseResult = await unwrapParseResult(pgParser.parse(sql));
+        await unwrapDeparseResult(pgParser.deparse(parseResult));
+      }
+
+      const heapAfter = await pgParser.getHeapSize();
+
+      // Allow up to 1 WASM page (64 KB) of growth for internal allocator overhead
+      expect(heapAfter - heapBefore).toBeLessThan(64 * 1024);
+    });
   });
 });

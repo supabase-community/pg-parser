@@ -1,9 +1,13 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "macros.h"
 #include "pg_query.h"
 #include "protobuf-json.h"
+
+// Forward-declare from pg_query.c (not in public header).
+// Used to avoid linking pg_query_parse.c which pulls in the old JSON serializer.
+void pg_query_free_error(PgQueryError *error);
 
 EXPORT("parse_sql")
 PgQueryParseResult *parse_sql(char *sql) {
@@ -17,6 +21,7 @@ PgQueryParseResult *parse_sql(char *sql) {
     result->parse_tree = NULL;
     result->error = protobufResult->error;
     result->stderr_buffer = protobufResult->stderr_buffer;
+    free(protobufResult);
     return result;
   }
 
@@ -24,15 +29,24 @@ PgQueryParseResult *parse_sql(char *sql) {
   free(protobufResult->parse_tree.data);
 
   if (json_result->json_string == NULL) {
-    free(json_result->error);
-    free(json_result);
-    // TODO: return the json error
-    return NULL;
+    PgQueryError *error = NULL;
+    if (json_result->error) {
+      error = (PgQueryError *)calloc(1, sizeof(PgQueryError));
+      error->message = json_result->error; // Transfer ownership of string
+    }
+    result->parse_tree = NULL;
+    result->error = error;
+    result->stderr_buffer = protobufResult->stderr_buffer;
+    free(json_result); // Don't free ->error, ownership transferred
+    free(protobufResult);
+    return result;
   }
 
   result->parse_tree = json_result->json_string;
   result->error = NULL;
   result->stderr_buffer = protobufResult->stderr_buffer;
+  free(json_result);
+  free(protobufResult);
   return result;
 }
 
@@ -41,25 +55,33 @@ PgQueryDeparseResult *deparse_sql(char *parse_tree_json) {
   JsonToProtobufResult *protobuf_result = json_to_protobuf(parse_tree_json);
 
   if (protobuf_result->error) {
-    free(protobuf_result->error);
-    free(protobuf_result);
-    // TODO: return the protobuf error
-    return NULL;
+    PgQueryDeparseResult *result = (PgQueryDeparseResult *)malloc(sizeof(PgQueryDeparseResult));
+    PgQueryError *error = (PgQueryError *)calloc(1, sizeof(PgQueryError));
+    error->message = protobuf_result->error; // Transfer ownership of string
+    result->query = NULL;
+    result->error = error;
+    free(protobuf_result); // Don't free ->error, ownership transferred
+    return result;
   }
 
   PgQueryDeparseResult *result = (PgQueryDeparseResult *)malloc(sizeof(PgQueryDeparseResult));
-  printf("Deparse parse tree: %p\n", parse_tree_json);
-  printf("Deparse parse tree length: %d\n", protobuf_result->protobuf.len);
   *result = pg_query_deparse_protobuf(protobuf_result->protobuf);
-  printf("Deparse error: %p\n", result->error);
-  printf("Deparse result: %s\n", result->query);
 
+  free(protobuf_result->protobuf.data);
+  free(protobuf_result);
   return result;
 }
 
 EXPORT("free_parse_result")
 void free_parse_result(PgQueryParseResult *result) {
-  pg_query_free_parse_result(*result);
+  // Manually free instead of calling pg_query_free_parse_result(),
+  // which lives in pg_query_parse.c and transitively pulls in the
+  // old hand-rolled JSON serializer (~100-125 KB).
+  if (result->error) {
+    pg_query_free_error(result->error);
+  }
+  free(result->parse_tree);
+  free(result->stderr_buffer);
   free(result);
 }
 

@@ -245,7 +245,12 @@ static int protobuf2json_process_message(
         if (*(const void *const *)protobuf_value) {
           is_set = 1;
         }
+      } else if (field_descriptor->label == PROTOBUF_C_LABEL_NONE) {
+        // Proto3 scalars have no presence tracking (quantifier_offset is 0).
+        // Always emit — oneof variants were already filtered above.
+        is_set = 1;
       } else {
+        // Proto2 optional scalars use quantifier as a presence boolean
         if (*(const protobuf_c_boolean *)protobuf_value_quantifier) {
           is_set = 1;
         }
@@ -406,8 +411,6 @@ static int json2protobuf_process_field(
     void *protobuf_value,
     char *error_string,
     size_t error_size) {
-  printf("json2protobuf_process_field: %s\n", field_descriptor->name);
-
   if (field_descriptor->type == PROTOBUF_C_TYPE_INT32 || field_descriptor->type == PROTOBUF_C_TYPE_SINT32 || field_descriptor->type == PROTOBUF_C_TYPE_SFIXED32) {
     if (!json_is_integer(json_value)) {
       SET_ERROR_STRING_AND_RETURN(
@@ -577,8 +580,6 @@ static int json2protobuf_process_field(
   } else if (field_descriptor->type == PROTOBUF_C_TYPE_MESSAGE) {
     ProtobufCMessage *protobuf_message = NULL;
 
-    printf("json2protobuf_process_message: %s\n", field_descriptor->name);
-
     int result = json2protobuf_process_message(json_value, field_descriptor->descriptor, &protobuf_message, error_string, error_size);
     if (result) {
       return result;
@@ -618,9 +619,6 @@ static int json2protobuf_process_message(
         PROTOBUF2JSON_ERR_IS_NOT_OBJECT,
         "JSON is not an object required for GPB message");
   }
-
-  printf("allocating %zu bytes for GPB message '%s'\n",
-         protobuf_message_descriptor->sizeof_message, protobuf_message_descriptor->name);
 
   *protobuf_message = calloc(1, protobuf_message_descriptor->sizeof_message);
   if (!*protobuf_message) {
@@ -672,10 +670,6 @@ static int json2protobuf_process_message(
     void *protobuf_value = ((char *)*protobuf_message) + field_descriptor->offset;
     void *protobuf_value_quantifier = ((char *)*protobuf_message) + field_descriptor->quantifier_offset;
 
-    printf("json_key: %s\n", json_key);
-    printf("field_descriptor->name: %s\n", field_descriptor->name);
-    printf("field_descriptor->label: %d\n", field_descriptor->label);
-
     if (field_descriptor->label == PROTOBUF_C_LABEL_REQUIRED) {
       result = json2protobuf_process_field(field_descriptor, json_object_value, protobuf_value, error_string, error_size);
       if (result) {
@@ -698,7 +692,10 @@ static int json2protobuf_process_message(
         return result;
       }
     } else if (field_descriptor->label == PROTOBUF_C_LABEL_NONE) {
-      // Proto3 fields don't track presence except for messages
+      if (field_descriptor->flags & PROTOBUF_C_FIELD_FLAG_ONEOF) {
+        // Set the oneof case discriminator so the packed protobuf knows which variant is active
+        *(uint32_t *)protobuf_value_quantifier = field_descriptor->id;
+      }
       result = json2protobuf_process_field(field_descriptor, json_object_value, protobuf_value, error_string, error_size);
       if (result) {
         SAFE_FREE_BITMAP_AND_MESSAGE;

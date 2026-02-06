@@ -73,6 +73,11 @@ $(JANSSON_LIB): $(JANSSON_STAMP)
 
 $(LIBPG_QUERY_STAMP):
 	git clone -c advice.detachedHead=false --depth 1 --branch $(LIBPG_QUERY_TAG) $(LIBPG_QUERY_REPO) $(LIBPG_QUERY_DIR)
+	@# Patch protoc to emit json_name descriptors (required by our protobuf<->JSON bridge).
+	@# Our forked protobuf-c supports --c_out=json_name=true: to populate json_name in field descriptors.
+	sed -i 's|--c_out=\.|--c_out=json_name=true:.|' $(LIBPG_QUERY_DIR)/Makefile
+	@# Force protobuf regeneration so .pb-c.c/.h get json_name descriptors
+	touch $(LIBPG_QUERY_DIR)/protobuf/pg_query.proto
 	touch $@
 
 $(JANSSON_STAMP):
