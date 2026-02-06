@@ -4,7 +4,8 @@ Postgres SQL parser that can run anywhere (Browser, Node.js, Deno, Bun, etc.).
 
 ## Features
 
-- **AST:** Parses Postgres SQL queries into an abstract syntax tree (AST)
+- **Parse:** Parses Postgres SQL queries into an abstract syntax tree (AST)
+- **Deparse:** Converts an AST back into a SQL string
 - **Accurate:** Uses real Postgres C code compiled to WASM
 - **Multi-version:** Supports multiple Postgres versions at runtime (15, 16, 17)
 - **Multi-runtime:** Works on any modern JavaScript runtime (Browser, Node.js, Deno, Bun, etc.)
@@ -32,17 +33,38 @@ pnpm add @supabase/pg-parser
 
 ## Usage
 
+### Parse SQL to AST
+
 ```typescript
 import { PgParser } from '@supabase/pg-parser';
 
 const parser = new PgParser(); // Defaults to latest version (17)
 
-// Parse a SQL query
 const { tree } = await parser.parse('SELECT * FROM users WHERE id = 1');
 
 console.log(tree);
 
 // { version: 170004, stmts: [ ... ] }
+```
+
+### Deparse AST to SQL
+
+```typescript
+import { PgParser } from '@supabase/pg-parser';
+
+const parser = new PgParser();
+
+// Parse SQL into an AST
+const { tree } = await parser.parse('SELECT * FROM users WHERE id = 1');
+
+// { version: 170004, stmts: [ ... ] }
+
+// Deparse the AST back into SQL
+const { sql } = await parser.deparse(tree);
+
+console.log(sql);
+
+// SELECT * FROM users WHERE id = 1
 ```
 
 ## API
@@ -97,6 +119,58 @@ const parser = new PgParser();
 const sql = 'SELECT * FROM users WHERE id = 1';
 const tree = await unwrapParseResult(parser.parse(sql)); // Throws an error if the parse failed
 console.log('Parsed AST:', tree);
+```
+
+### `deparse()` method
+
+To convert an AST back into a SQL string, use the `deparse()` method:
+
+```typescript
+const { tree } = await parser.parse('SELECT * FROM users WHERE id = 1');
+const result = await parser.deparse(tree);
+```
+
+This returns a `WrappedDeparseResult` object. If the deparse was successful, `WrappedDeparseResult` will contain a `sql` property containing the reconstructed SQL string.
+
+If the deparse failed, `WrappedDeparseResult` will contain an `error` property with the error message.
+
+Use the `error` property to check if the deparse was successful:
+
+```typescript
+if (result.error) {
+  console.error('Deparse error:', result.error);
+} else {
+  console.log('SQL:', result.sql);
+}
+```
+
+TypeScript will correctly narrow the type of `result` based on whether there was an error or not.
+
+If you prefer throwing an error instead of returning a result object, you can wrap `deparse()` in the `unwrapDeparseResult()` helper (see [Utility functions](#utility-functions)).
+
+#### Modifying the AST
+
+One of the most useful applications of deparse is modifying SQL programmatically. You can parse a query, modify the AST, and then deparse it back into SQL:
+
+```typescript
+import { PgParser, unwrapNode } from '@supabase/pg-parser';
+
+const parser = new PgParser();
+
+// Parse the original query
+const { tree } = await parser.parse('SELECT 1 + 1');
+
+// Modify the AST: add an alias to the expression
+const { node: selectStmt } = unwrapNode(tree.stmts[0].stmt);
+const { node: resTarget } = unwrapNode(selectStmt.targetList[0]);
+resTarget.name = 'total';
+
+// Deparse the modified AST back into SQL
+const { sql } = await parser.deparse(tree);
+
+console.log(sql);
+
+// SELECT 1 + 1 AS total
 ```
 
 ### `tree` object
@@ -208,7 +282,7 @@ const supportedVersions = getSupportedVersions();
 console.log(supportedVersions); // [15, 16, 17]
 ```
 
-### `error` object
+### Parse `error` object
 
 If the parse fails, `PgParser` will return an `error` of type `ParseError` with the following properties:
 
@@ -231,9 +305,42 @@ If the parse fails, `PgParser` will return an `error` of type `ParseError` with 
 
   **Note:** This is relative to the entire SQL string, not just the statement being parsed or line numbers within a statement. If you are parsing a multi-statement query, the position will be relative to the entire query string, where newlines are counted as single characters.
 
+### Deparse `error` object
+
+If the deparse fails, `PgParser` will return an `error` of type `DeparseError` with the following property:
+
+- `message`: A human-readable error message describing what went wrong.
+
+Unlike `ParseError`, deparse errors don't have a `position` or `type` since they operate on an AST rather than a SQL string. Deparse errors typically occur when the AST contains invalid structure, such as a wrong type for a field (e.g. passing a string where an array is expected).
+
 ### Utility functions
 
-The following utility functions are available to help with parsing:
+The following utility functions are available:
+
+#### `unwrapParseResult()`
+
+Unwraps a `WrappedParseResult` by throwing an error if the result contains an `error`, or otherwise returning the parsed `tree`. Supports both synchronous and asynchronous results.
+
+```typescript
+import { PgParser, unwrapParseResult } from '@supabase/pg-parser';
+const parser = new PgParser();
+const tree = await unwrapParseResult(parser.parse('SELECT 1'));
+```
+
+#### `unwrapDeparseResult()`
+
+Unwraps a `WrappedDeparseResult` by throwing an error if the result contains an `error`, or otherwise returning the deparsed SQL string. Supports both synchronous and asynchronous results.
+
+```typescript
+import {
+  PgParser,
+  unwrapParseResult,
+  unwrapDeparseResult,
+} from '@supabase/pg-parser';
+const parser = new PgParser();
+const tree = await unwrapParseResult(parser.parse('SELECT 1'));
+const sql = await unwrapDeparseResult(parser.deparse(tree));
+```
 
 #### `unwrapNode()`
 
@@ -319,7 +426,8 @@ switch (type) {
 
 ## Roadmap
 
-- [ ] Deparse SQL queries (AST -> SQL)
+- [x] Parse SQL queries (SQL -> AST)
+- [x] Deparse SQL queries (AST -> SQL)
 - [ ] Expose Postgres scanner (lexer)
 - [ ] Version compatibility checks
 
