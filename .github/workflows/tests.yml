@@ -23,7 +23,7 @@ jobs:
       - name: Build libs
         run: pnpm run build
       - name: Get playwright version
-        run: echo "PLAYWRIGHT_VERSION=$(pnpm list @playwright/test | grep @playwright/test | awk '{print $2}')" >> $GITHUB_ENV
+        run: echo "PLAYWRIGHT_VERSION=$(pnpm --filter @supabase/pg-parser exec playwright --version | tail -1 | awk '{print $NF}')" >> $GITHUB_ENV
       - name: Setup playwright
         uses: ./.github/actions/setup-playwright
         with:
