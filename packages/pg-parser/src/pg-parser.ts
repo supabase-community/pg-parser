@@ -17,6 +17,16 @@ import { isSupportedVersion } from './util.js';
 type Pointer = number;
 
 const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+/**
+ * Reads a null-terminated UTF-8 string from the WASM heap.
+ */
+function readString(heap: Int8Array, ptr: number): string {
+  let end = ptr;
+  while (heap[end] !== 0) end++;
+  return textDecoder.decode(new Uint8Array(heap.buffer, ptr, end - ptr));
+}
 
 export type PgParserOptions<Version extends SupportedVersion> = {
   version?: Version | number;
@@ -121,12 +131,12 @@ export class PgParser<Version extends SupportedVersion = 17> {
     const errorPtr = module.getValue(resultPtr + 8, 'i32');
 
     const tree = parseTreePtr
-      ? JSON.parse(module.UTF8ToString(parseTreePtr))
+      ? JSON.parse(readString(module.HEAP8, parseTreePtr))
       : undefined;
 
     // TODO: add debug mode + print this to stdout/stderr
     const stderrBuffer = stderrBufferPtr
-      ? module.UTF8ToString(stderrBufferPtr)
+      ? readString(module.HEAP8, stderrBufferPtr)
       : undefined;
 
     const error = errorPtr
@@ -188,7 +198,7 @@ export class PgParser<Version extends SupportedVersion = 17> {
         };
       }
 
-      const sql = queryPtr ? module.UTF8ToString(queryPtr) : undefined;
+      const sql = queryPtr ? readString(module.HEAP8, queryPtr) : undefined;
 
       if (!sql) {
         throw new Error('query is undefined');
@@ -230,10 +240,10 @@ export class PgParser<Version extends SupportedVersion = 17> {
     const position = cursorpos > 0 ? cursorpos - 1 : 0; // Convert 1-based to 0-based
 
     const message = messagePtr
-      ? module.UTF8ToString(messagePtr)
+      ? readString(module.HEAP8, messagePtr)
       : 'unknown error';
     const type: ParseErrorType = fileNamePtr
-      ? getParseErrorType(module.UTF8ToString(fileNamePtr))
+      ? getParseErrorType(readString(module.HEAP8, fileNamePtr))
       : 'unknown';
 
     return new ParseError(message, { type, position });
@@ -249,7 +259,7 @@ export class PgParser<Version extends SupportedVersion = 17> {
 
     const messagePtr = module.getValue(errorPtr, 'i32');
     const message = messagePtr
-      ? module.UTF8ToString(messagePtr)
+      ? readString(module.HEAP8, messagePtr)
       : 'unknown error';
 
     return new DeparseError(message);

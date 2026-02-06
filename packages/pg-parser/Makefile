@@ -23,10 +23,9 @@ LDFLAGS = -Wl,--gc-sections,--strip-all
 
 EMSCRIPTEN_FLAGS = \
 		--no-entry \
-		-sFILESYSTEM=1 \
 		-sALLOW_MEMORY_GROWTH=1 \
 		-sEXPORT_NAME="$(WASM_MODULE_NAME)" \
-		-sEXPORTED_RUNTIME_METHODS="['HEAP8','getValue','UTF8ToString','stringToUTF8']" \
+		-sEXPORTED_RUNTIME_METHODS="['HEAP8','getValue']" \
 		-sEXPORTED_FUNCTIONS="['_malloc', '_free']" \
 		-sMODULARIZE=1 \
 		-sEXPORT_ES6=1
@@ -56,7 +55,7 @@ JANSSON_STAMP = $(JANSSON_DIR)/.stamp
 
 $(OUTPUT_FILES): $(OBJ_FILES) $(LIBPG_QUERY_LIB) $(JANSSON_LIB)
 	@mkdir -p $(OUTPUT_DIR)
-	$(CC) $(LDFLAGS) $(EMSCRIPTEN_FLAGS) -o $(OUTPUT_JS) $(OBJ_FILES) $(LIBPG_QUERY_LIB) $(JANSSON_LIB) --closure 0 --emit-tsd $(OUTPUT_D_TS)
+	$(CC) $(LDFLAGS) $(EMSCRIPTEN_FLAGS) -o $(OUTPUT_JS) $(OBJ_FILES) $(LIBPG_QUERY_LIB) $(JANSSON_LIB) --closure 1 --emit-tsd $(OUTPUT_D_TS)
 #	$(PROTOBUF_TYPE_GENERATOR) -i $(LIBPG_QUERY_DIR)/protobuf/pg_query.proto -o $(OUTPUT_DIR)
 
 $(OBJ_FILES): %.o: %.c | $(LIBPG_QUERY_LIB) $(JANSSON_LIB)
