@@ -438,7 +438,7 @@ Each Postgres version ships as a separate `.wasm` file. Most CDNs and hosting pr
 | WASM binary (PG 16) | 1.5 MB | **~241 KB** | **~318 KB** |
 | WASM binary (PG 17) | 1.7 MB | **~254 KB** | **~341 KB** |
 
-The WASM binary is dominated by PostgreSQL's LALR parser tables (~583 KB raw) - an irreducible property of the grammar - and protobuf descriptors for ~200 AST node types (~160 KB raw). These compress well (~80%) because they're highly repetitive integer arrays.
+The WASM binary is dominated by Postgres's LALR parser tables (~583 KB raw) and protobuf descriptors for ~200 AST node types (~160 KB raw). These compress well (~80%) because they're highly repetitive integer arrays. The parser tables are a direct property of Postgres's grammar - any parser (in any language) that fully supports Postgres syntax will carry similar overhead.
 
 For context, the compressed transfer size sits between three.js (~150 KB gzip) and sql.js/SQLite (~450 KB gzip).
 
