@@ -8,13 +8,13 @@ pg-parser compiles [libpg_query](https://github.com/pganalyze/libpg_query) (Post
 
 ## Why Emscripten (not WASI)
 
-WASI would be preferred for its portability and smaller runtime footprint, but PostgreSQL's parser uses `setjmp`/`longjmp` for error handling (its `PG_TRY`/`PG_CATCH` mechanism). WASI has no support for `setjmp`/`longjmp`. Emscripten does — it rewrites them into JavaScript exception handling at compile time, which is the main reason we depend on it.
+WASI would be preferred for its portability and smaller runtime footprint, but PostgreSQL's parser uses `setjmp`/`longjmp` for error handling (its `PG_TRY`/`PG_CATCH` mechanism). This requires stack unwinding/rewinding, which WASI has no support for. Emscripten does — it rewrites `setjmp`/`longjmp` into JavaScript exception handling at compile time, which is the main reason we depend on it.
 
 ## Architecture
 
 Three layers: **TypeScript API** → **C bindings** (compiled to WASM) → **libpg_query** + **protobuf-JSON bridge**.
 
-We use `pg_query_parse_protobuf` / `pg_query_deparse_protobuf` (the protobuf API, not the old JSON one). A protobuf-JSON bridge converts between protobuf and the JSON AST that TypeScript consumers work with.
+We use `pg_query_parse_protobuf` / `pg_query_deparse_protobuf` (the protobuf API, not the JSON one). A protobuf-JSON bridge converts between protobuf and the JSON AST that TypeScript consumers work with.
 
 ### Parse Flow
 
@@ -53,7 +53,9 @@ All WASM memory is managed explicitly. The TypeScript side follows the same patt
 
 ### The Protobuf-JSON Bridge
 
-Adapted from [protobuf2json-c](https://github.com/Sannis/protobuf2json-c) with changes for proto3 semantics (the original was proto2-only). Uses a [forked protobuf-c](https://github.com/gregnr/protobuf-c/tree/feat/json_name) that adds `json_name` descriptor support, required because libpg_query's `.proto` uses `json_name` annotations for PascalCase node names.
+The protobuf-JSON conversion happens in C (inside WASM) rather than in JavaScript. A JS-based protobuf library (e.g. protobuf.js) would add significant bundle size, and libpg_query already vendors protobuf-c for its own serialization — so we reuse that and just add a thin JSON layer on top.
+
+It was adapted from [protobuf2json-c](https://github.com/Sannis/protobuf2json-c) with changes for proto3 semantics (the original was proto2-only). Uses a [forked protobuf-c](https://github.com/gregnr/protobuf-c/tree/feat/json_name) that adds `json_name` descriptor support, required because libpg_query's `.proto` uses `json_name` annotations for node names.
 
 ## Development
 
