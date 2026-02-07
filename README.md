@@ -424,6 +424,24 @@ switch (type) {
 }
 ```
 
+## Bundle size
+
+WASM binaries are lazy-loaded — only fetched when you construct a `PgParser`, and only for the version you request. The JS bundle itself is **~3 KB compressed**.
+
+Each Postgres version ships as a separate `.wasm` file. Most CDNs and hosting providers serve WASM with brotli compression by default (gzip as fallback), so transfer size is what matters in practice.
+
+|                     | Raw    | Brotli      | Gzip        |
+| ------------------- | ------ | ----------- | ----------- |
+| JS bundle           | 9 KB   | **~3 KB**   | **~3 KB**   |
+| Emscripten loader   | 52 KB  | **~16 KB**  | **~18 KB**  |
+| WASM binary (PG 15) | 1.4 MB | **~231 KB** | **~303 KB** |
+| WASM binary (PG 16) | 1.5 MB | **~241 KB** | **~318 KB** |
+| WASM binary (PG 17) | 1.7 MB | **~254 KB** | **~341 KB** |
+
+The WASM binary is dominated by PostgreSQL's LALR parser tables (~583 KB raw) - an irreducible property of the grammar - and protobuf descriptors for ~200 AST node types (~160 KB raw). These compress well (~80%) because they're highly repetitive integer arrays.
+
+For context, the compressed transfer size sits between three.js (~150 KB gzip) and sql.js/SQLite (~450 KB gzip).
+
 ## Roadmap
 
 - [x] Parse SQL queries (SQL -> AST)
