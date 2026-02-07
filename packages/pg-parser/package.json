@@ -49,9 +49,7 @@
       "default": "./dist/types/17.cjs"
     }
   },
-  "dependencies": {
-    "@bjorn3/browser_wasi_shim": "^0.4.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
     "@playwright/test": "^1.52.0",

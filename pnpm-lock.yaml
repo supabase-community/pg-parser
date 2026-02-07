@@ -9,10 +9,6 @@ importers:
   .: {}
 
   packages/pg-parser:
-    dependencies:
-      '@bjorn3/browser_wasi_shim':
-        specifier: ^0.4.1
-        version: 0.4.1
     devDependencies:
       '@edge-runtime/vm':
         specifier: ^5.0.0
@@ -121,9 +117,6 @@ packages:
   '@babel/types@7.27.1':
     resolution: {integrity: sha512-+EzkxvLNfiUeKMgy/3luqfsCWFRXLb7U6wNQTk60tovuckwB15B191tJWvpp4HjiQWdJkCxO3Wbvc6jlk3Xb2Q==}
     engines: {node: '>=6.9.0'}
-
-  '@bjorn3/browser_wasi_shim@0.4.1':
-    resolution: {integrity: sha512-54kpBQX69TZ8I1zyDC8sziv/zPT1zoIadv3CmdIZNZ5WDF1houMjAzRZ3dwWvhXObiEBjOxXyS8Ja7vA0EfGEQ==}
 
   '@edge-runtime/primitives@6.0.0':
     resolution: {integrity: sha512-FqoxaBT+prPBHBwE1WXS1ocnu/VLTQyZ6NMUBAdbP7N2hsFTTxMC/jMu2D/8GAlMQfxeuppcPuCUk/HO3fpIvA==}
@@ -1418,8 +1411,6 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.27.1
-
-  '@bjorn3/browser_wasi_shim@0.4.1': {}
 
   '@edge-runtime/primitives@6.0.0': {}
 
