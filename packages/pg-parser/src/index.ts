@@ -1,4 +1,5 @@
 export {
+  DeparseError,
   ParseError,
   type ParseErrorDetails,
   type ParseErrorType,
@@ -7,6 +8,9 @@ export * from './pg-parser.js';
 export type {
   ParseResult,
   SupportedVersion,
+  WrappedDeparseError,
+  WrappedDeparseResult,
+  WrappedDeparseSuccess,
   WrappedParseError,
   WrappedParseResult,
   WrappedParseSuccess,
@@ -15,6 +19,7 @@ export {
   getSupportedVersions,
   isParseResultVersion,
   isSupportedVersion,
+  unwrapDeparseResult,
   unwrapNode,
   unwrapParseResult,
 } from './util.js';

@@ -7,6 +7,7 @@ import type { Node16, ParseResult16 } from './16.js';
 import type { Node17, ParseResult17 } from './17.js';
 
 import type { SUPPORTED_VERSIONS } from '../constants.js';
+import type { DeparseError } from '../errors.js';
 import type { ParseError } from '../errors.js';
 
 export type SupportedVersion = (typeof SUPPORTED_VERSIONS)[number];
@@ -54,3 +55,15 @@ export type WrappedParseError = {
 export type WrappedParseResult<Version extends SupportedVersion> =
   | WrappedParseSuccess<Version>
   | WrappedParseError;
+
+export type WrappedDeparseSuccess = {
+  sql: string;
+  error: undefined;
+};
+
+export type WrappedDeparseError = {
+  sql: undefined;
+  error: DeparseError;
+};
+
+export type WrappedDeparseResult = WrappedDeparseSuccess | WrappedDeparseError;

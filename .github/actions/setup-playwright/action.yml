@@ -23,10 +23,10 @@ runs:
 
     - name: Install playwright browsers if they don't exist
       shell: bash
-      run: npx playwright install --with-deps
+      run: pnpm --filter @supabase/pg-parser exec playwright install --with-deps
       if: steps.playwright-cache.outputs.cache-hit != 'true'
 
     - name: Install playwright dependencies if binaries exist
       shell: bash
-      run: npx playwright install-deps
+      run: pnpm --filter @supabase/pg-parser exec playwright install-deps
       if: steps.playwright-cache.outputs.cache-hit == 'true'
