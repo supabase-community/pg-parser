@@ -7,6 +7,7 @@ export default defineConfig([
       'src/types/15.ts',
       'src/types/16.ts',
       'src/types/17.ts',
+      'src/ast/index.ts',
     ],
     format: ['cjs', 'esm'],
     outDir: 'dist',

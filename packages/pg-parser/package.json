@@ -47,6 +47,11 @@
       "types": "./dist/types/17.d.ts",
       "import": "./dist/types/17.js",
       "default": "./dist/types/17.cjs"
+    },
+    "./ast": {
+      "types": "./dist/ast/index.d.ts",
+      "import": "./dist/ast/index.js",
+      "default": "./dist/ast/index.cjs"
     }
   },
   "dependencies": {},
