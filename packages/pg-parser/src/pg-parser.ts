@@ -65,7 +65,24 @@ export class PgParser<Version extends SupportedVersion = 17> {
    */
   async #init(version: SupportedVersion) {
     const createModule = await this.#loadFactory(version);
-    return await createModule();
+
+    // In Node.js (including SSR), tell Emscripten to resolve the WASM file
+    // using its script directory instead of `new URL(file, import.meta.url)`.
+    // Bundlers like webpack/turbopack rewrite that URL pattern into an asset
+    // path (e.g. /_next/static/media/...) that isn't valid on the filesystem.
+    // The script directory is correctly derived from import.meta.url by the
+    // Emscripten glue code and points to the actual .wasm file location.
+    const isNode =
+      typeof process !== 'undefined' && !!process.versions?.node;
+
+    return await createModule(
+      isNode
+        ? {
+            locateFile: (path: string, scriptDirectory: string) =>
+              scriptDirectory + path,
+          }
+        : undefined
+    );
   }
 
   /**

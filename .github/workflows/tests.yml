@@ -30,3 +30,21 @@ jobs:
           version: ${{ env.PLAYWRIGHT_VERSION }}
       - name: Tests
         run: pnpm run test
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build libs
+        run: pnpm run build
+      - name: Next.js
+        run: pnpm --filter nextjs build

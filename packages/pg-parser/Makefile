@@ -56,6 +56,13 @@ JANSSON_STAMP = $(JANSSON_DIR)/.stamp
 $(OUTPUT_FILES): $(OBJ_FILES) $(LIBPG_QUERY_LIB) $(JANSSON_LIB)
 	@mkdir -p $(OUTPUT_DIR)
 	$(CC) $(LDFLAGS) $(EMSCRIPTEN_FLAGS) -o $(OUTPUT_JS) $(OBJ_FILES) $(LIBPG_QUERY_LIB) $(JANSSON_LIB) --closure 1 --emit-tsd $(OUTPUT_D_TS)
+	@# Patch Emscripten glue code for bundler compatibility (webpack/turbopack).
+	@# 1. import("module") — bundlers can't resolve this Node.js builtin in browser bundles.
+	@# 2. new URL(".", import.meta.url) — bundlers trace the assigned variable back to
+	@#    import.meta.url and flag any new URL() using it as an asset import. .slice()
+	@#    breaks the trace while returning an identical string value.
+	sed -i 's/await import("module")/await import(\/* webpackIgnore: true *\/ "module")/' $(OUTPUT_JS)
+	sed -i 's/= import\.meta\.url/= import.meta.url.slice()/' $(OUTPUT_JS)
 	$(PROTOBUF_TYPE_GENERATOR) -i $(LIBPG_QUERY_DIR)/protobuf/pg_query.proto -o $(OUTPUT_DIR)
 
 $(OBJ_FILES): %.o: %.c | $(LIBPG_QUERY_LIB) $(JANSSON_LIB)
