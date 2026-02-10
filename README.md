@@ -6,6 +6,7 @@ Postgres SQL parser that can run anywhere (Browser, Node.js, Deno, Bun, etc.).
 
 - **Parse:** Parses Postgres SQL queries into an abstract syntax tree (AST)
 - **Deparse:** Converts an AST back into a SQL string
+- **Scan:** Tokenizes SQL into a stream of classified tokens (useful for syntax highlighting, formatting, linting)
 - **Accurate:** Uses real Postgres C code compiled to WASM
 - **Multi-version:** Supports multiple Postgres versions at runtime (15, 16, 17)
 - **Multi-runtime:** Works on any modern JavaScript runtime (Browser, Node.js, Deno, Bun, etc.)
@@ -65,6 +66,25 @@ const { sql } = await parser.deparse(tree);
 console.log(sql);
 
 // SELECT * FROM users WHERE id = 1
+```
+
+### Scan SQL into tokens
+
+```typescript
+import { PgParser, unwrapScanResult } from '@supabase/pg-parser';
+
+const parser = new PgParser();
+
+const tokens = await unwrapScanResult(parser.scan('SELECT 1 + 2'));
+
+console.log(tokens);
+
+// [
+//   { kind: 'SELECT', text: 'SELECT', start: 0, end: 6, keywordKind: 'reserved' },
+//   { kind: 'ICONST', text: '1', start: 7, end: 8, keywordKind: 'none' },
+//   { kind: 'ASCII_43', text: '+', start: 9, end: 10, keywordKind: 'none' },
+//   { kind: 'ICONST', text: '2', start: 11, end: 12, keywordKind: 'none' },
+// ]
 ```
 
 ## API
@@ -147,6 +167,48 @@ if (result.error) {
 TypeScript will correctly narrow the type of `result` based on whether there was an error or not.
 
 If you prefer throwing an error instead of returning a result object, you can wrap `deparse()` in the `unwrapDeparseResult()` helper (see [Utility functions](#utility-functions)).
+
+### `scan()` method
+
+To tokenize a SQL string, use the `scan()` method:
+
+```typescript
+const sql = 'SELECT * FROM users WHERE id = 1';
+const result = await parser.scan(sql);
+```
+
+This returns a `WrappedScanResult` object. If the scan was successful, `WrappedScanResult` will contain a `tokens` array of `ScanToken` objects.
+
+If the scan failed (e.g. an unterminated string literal), `WrappedScanResult` will contain an `error` property with the error message.
+
+```typescript
+if (result.error) {
+  console.error('Scan error:', result.error);
+} else {
+  console.log('Tokens:', result.tokens);
+}
+```
+
+If you prefer throwing an error instead of returning a result object, you can wrap `scan()` in the `unwrapScanResult()` helper (see [Utility functions](#utility-functions)).
+
+Each `ScanToken` has the following properties:
+
+- `kind`: The raw Postgres token name (e.g. `'SELECT'`, `'IDENT'`, `'ICONST'`, `'ASCII_43'`). These are the internal names used by Postgres's lexer, passed through with no transformation. Keywords like `SELECT` and `FROM` use their SQL name. Operators and punctuation use `ASCII_<code>` notation (e.g. `ASCII_40` for `(`). Some multi-character operators have named kinds like `TYPECAST` (`::`) and `NOT_EQUALS` (`<>` and `!=`).
+
+- `text`: The original text of the token from the SQL input. This is always the exact characters from the source — useful for distinguishing tokens that share the same `kind` (e.g. `<>` vs `!=` are both `NOT_EQUALS`, but `text` preserves the original).
+
+- `start`: Start byte offset in the input (0-based, inclusive).
+
+- `end`: End byte offset in the input (exclusive).
+
+- `keywordKind`: The keyword classification. Possible values are:
+  - `'none'`: Not a keyword (identifiers, constants, operators, etc.)
+  - `'unreserved'`: An unreserved keyword (can be used as an identifier without quoting)
+  - `'col_name'`: A keyword reserved in certain contexts (can be used as a column name)
+  - `'type_func_name'`: A keyword reserved in certain contexts (can be used as a type or function name)
+  - `'reserved'`: A fully reserved keyword (cannot be used as an identifier)
+
+> **Note:** `start` and `end` are byte offsets, not character offsets. For ASCII-only SQL they are the same, but for multi-byte UTF-8 characters (e.g. emoji, CJK) byte offsets will differ from character positions.
 
 #### Modifying the AST
 
@@ -313,6 +375,18 @@ If the deparse fails, `PgParser` will return an `error` of type `DeparseError` w
 
 Unlike `ParseError`, deparse errors don't have a `position` or `type` since they operate on an AST rather than a SQL string. Deparse errors typically occur when the AST contains invalid structure, such as a wrong type for a field (e.g. passing a string where an array is expected).
 
+### Scan `error` object
+
+If the scan fails, `PgParser` will return an `error` of type `ScanError` with the following properties:
+
+- `message`: A human-readable error message (e.g., `unterminated quoted string`).
+
+- `type`: The type of scan error. Possible values are:
+  - `syntax`: A lexical error from the scanner, such as unterminated string literals or invalid escape sequences.
+  - `unknown`: An unknown error type, typically representing an internal scanner error.
+
+- `position`: The position of the error in the SQL string. This is a zero-based index, so the first character is at position 0.
+
 ### Utility functions
 
 The following utility functions are available:
@@ -340,6 +414,16 @@ import {
 const parser = new PgParser();
 const tree = await unwrapParseResult(parser.parse('SELECT 1'));
 const sql = await unwrapDeparseResult(parser.deparse(tree));
+```
+
+#### `unwrapScanResult()`
+
+Unwraps a `WrappedScanResult` by throwing an error if the result contains an `error`, or otherwise returning the scanned `tokens`. Supports both synchronous and asynchronous results.
+
+```typescript
+import { PgParser, unwrapScanResult } from '@supabase/pg-parser';
+const parser = new PgParser();
+const tokens = await unwrapScanResult(parser.scan('SELECT 1'));
 ```
 
 #### `unwrapNode()`
@@ -446,7 +530,7 @@ For context, the compressed transfer size sits between three.js (~150 KB gzip) a
 
 - [x] Parse SQL queries (SQL -> AST)
 - [x] Deparse SQL queries (AST -> SQL)
-- [ ] Expose Postgres scanner (lexer)
+- [x] Expose Postgres scanner (lexer)
 - [ ] Version compatibility checks
 
 ## License

@@ -5,6 +5,7 @@ import type {
   SupportedVersion,
   WrappedDeparseResult,
   WrappedParseResult,
+  WrappedScanResult,
 } from './types/index.js';
 
 /**
@@ -55,6 +56,22 @@ export async function unwrapDeparseResult(
     throw resolved.error;
   }
   return resolved.sql;
+}
+
+/**
+ * Unwraps a `WrappedScanResult` by throwing an error if the result
+ * contains an `error`, or otherwise returning the scanned tokens.
+ *
+ * Supports both synchronous and asynchronous results.
+ */
+export async function unwrapScanResult(
+  result: WrappedScanResult | Promise<WrappedScanResult>
+) {
+  const resolved = await result;
+  if (resolved.error) {
+    throw resolved.error;
+  }
+  return resolved.tokens;
 }
 
 /**
