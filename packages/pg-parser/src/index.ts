@@ -3,10 +3,15 @@ export {
   ParseError,
   type ParseErrorDetails,
   type ParseErrorType,
+  ScanError,
+  type ScanErrorDetails,
+  type ScanErrorType,
 } from './errors.js';
 export * from './pg-parser.js';
 export type {
+  KeywordKind,
   ParseResult,
+  ScanToken,
   SupportedVersion,
   WrappedDeparseError,
   WrappedDeparseResult,
@@ -14,6 +19,9 @@ export type {
   WrappedParseError,
   WrappedParseResult,
   WrappedParseSuccess,
+  WrappedScanError,
+  WrappedScanResult,
+  WrappedScanSuccess,
 } from './types/index.js';
 export {
   getSupportedVersions,
@@ -22,4 +30,5 @@ export {
   unwrapDeparseResult,
   unwrapNode,
   unwrapParseResult,
+  unwrapScanResult,
 } from './util.js';

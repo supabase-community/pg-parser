@@ -50,6 +50,41 @@ export class DeparseError extends Error {
   override readonly name = 'DeparseError';
 }
 
+export type ScanErrorType = 'syntax' | 'unknown';
+
+export type ScanErrorDetails = {
+  type: ScanErrorType;
+  position: number;
+};
+
+/**
+ * An error that occurred while scanning/lexing a SQL string.
+ *
+ * Scan errors are always lexical in nature (e.g. unterminated string
+ * literals, invalid escape sequences).
+ */
+export class ScanError extends Error {
+  override readonly name = 'ScanError';
+
+  /**
+   * The type of scan error. Will be `syntax` for lexical errors
+   * from the scanner, or `unknown` for unexpected internal errors.
+   */
+  type: ScanErrorType;
+
+  /**
+   * The position of the error in the SQL string.
+   * This is a zero-based index, so the first character is at position 0.
+   */
+  position: number;
+
+  constructor(message: string, { type, position }: ScanErrorDetails) {
+    super(message);
+    this.type = type;
+    this.position = position;
+  }
+}
+
 /**
  * Get the type of parse error based on the internal file name
  * returned from libpg_query.

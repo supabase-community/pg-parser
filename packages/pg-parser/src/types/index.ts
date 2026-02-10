@@ -7,7 +7,7 @@ import type { Node16, ParseResult16 } from './16.js';
 import type { Node17, ParseResult17 } from './17.js';
 
 import type { SUPPORTED_VERSIONS } from '../constants.js';
-import type { DeparseError } from '../errors.js';
+import type { DeparseError, ScanError } from '../errors.js';
 import type { ParseError } from '../errors.js';
 
 export type SupportedVersion = (typeof SUPPORTED_VERSIONS)[number];
@@ -67,3 +67,35 @@ export type WrappedDeparseError = {
 };
 
 export type WrappedDeparseResult = WrappedDeparseSuccess | WrappedDeparseError;
+
+export type KeywordKind =
+  | 'none'
+  | 'unreserved'
+  | 'col_name'
+  | 'type_func_name'
+  | 'reserved';
+
+export interface ScanToken {
+  /** Token kind — raw PG token name (e.g. 'SELECT', 'IDENT', 'ASCII_40', 'NOT_EQUALS') */
+  kind: string;
+  /** The actual text of the token from the SQL input */
+  text: string;
+  /** Start byte offset in the input (0-based, inclusive) */
+  start: number;
+  /** End byte offset in the input (exclusive) */
+  end: number;
+  /** Keyword classification */
+  keywordKind: KeywordKind;
+}
+
+export type WrappedScanSuccess = {
+  tokens: ScanToken[];
+  error: undefined;
+};
+
+export type WrappedScanError = {
+  tokens: undefined;
+  error: ScanError;
+};
+
+export type WrappedScanResult = WrappedScanSuccess | WrappedScanError;

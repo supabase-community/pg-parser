@@ -3,14 +3,19 @@ import {
   getParseErrorType,
   ParseError,
   type ParseErrorType,
+  ScanError,
+  type ScanErrorType,
 } from './errors.js';
 import type {
+  KeywordKind,
   MainModule,
   ParseResult,
   PgParserModule,
+  ScanToken,
   SupportedVersion,
   WrappedDeparseResult,
   WrappedParseResult,
+  WrappedScanResult,
 } from './types/index.js';
 import { isSupportedVersion } from './util.js';
 
@@ -18,6 +23,14 @@ type Pointer = number;
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
+
+const KEYWORD_KINDS: KeywordKind[] = [
+  'none',
+  'unreserved',
+  'col_name',
+  'type_func_name',
+  'reserved',
+];
 
 /**
  * Reads a null-terminated UTF-8 string from the WASM heap.
@@ -231,38 +244,44 @@ export class PgParser<Version extends SupportedVersion = 17> {
   }
 
   /**
-   * Parses a PgQueryError struct from a pointer.
+   * Reads the common fields from a PgQueryError struct pointer.
    *
-   * The struct fields are defined in the C code as:
+   * The struct layout (WASM32) is:
    * ```c
    * typedef struct {
-   *   char *message;
-   *   char *funcname;
-   *   char *filename;
-   *   int lineno;
-   *   int cursorpos;
-   *   char *context;
+   *   char *message;     // offset 0
+   *   char *funcname;    // offset 4
+   *   char *filename;    // offset 8
+   *   int lineno;        // offset 12
+   *   int cursorpos;     // offset 16
+   *   char *context;     // offset 20
    * } PgQueryError;
    * ```
-   *
-   * We only care about the message and cursorpos fields, along with
-   * filename to determine the error type (syntax vs semantic).
    */
-  async #parsePgQueryError(errorPtr: number) {
+  async #readPgQueryError(errorPtr: number) {
     const module = await this.#module;
 
     const messagePtr = module.getValue(errorPtr, 'i32');
     const fileNamePtr = module.getValue(errorPtr + 8, 'i32');
     const cursorpos = module.getValue(errorPtr + 16, 'i32');
-    const position = cursorpos > 0 ? cursorpos - 1 : 0; // Convert 1-based to 0-based
 
     const message = messagePtr
       ? readString(module.HEAP8, messagePtr)
       : 'unknown error';
-    const type: ParseErrorType = fileNamePtr
-      ? getParseErrorType(readString(module.HEAP8, fileNamePtr))
-      : 'unknown';
+    const fileName = fileNamePtr
+      ? readString(module.HEAP8, fileNamePtr)
+      : undefined;
+    const position = cursorpos > 0 ? cursorpos - 1 : 0; // Convert 1-based to 0-based
 
+    return { message, fileName, position };
+  }
+
+  async #parsePgQueryError(errorPtr: number) {
+    const { message, fileName, position } =
+      await this.#readPgQueryError(errorPtr);
+    const type: ParseErrorType = fileName
+      ? getParseErrorType(fileName)
+      : 'unknown';
     return new ParseError(message, { type, position });
   }
 
@@ -272,13 +291,72 @@ export class PgParser<Version extends SupportedVersion = 17> {
    * meaningful position or type information.
    */
   async #parseDeparseError(errorPtr: number) {
+    const { message } = await this.#readPgQueryError(errorPtr);
+    return new DeparseError(message);
+  }
+
+  /**
+   * Scans (lexes) the given SQL string into an array of tokens.
+   *
+   * Each token includes its kind (raw PG token name), the original text,
+   * byte offsets, and keyword classification.
+   */
+  async scan(sql: string): Promise<WrappedScanResult> {
     const module = await this.#module;
 
-    const messagePtr = module.getValue(errorPtr, 'i32');
-    const message = messagePtr
-      ? readString(module.HEAP8, messagePtr)
-      : 'unknown error';
+    const sqlBytes = textEncoder.encode(sql);
+    const sqlPtr = module._malloc(sqlBytes.length + 1);
+    module.HEAP8.set(sqlBytes, sqlPtr);
+    module.HEAP8[sqlPtr + sqlBytes.length] = 0;
 
-    return new DeparseError(message);
+    const resultPtr = module._scan_sql(sqlPtr);
+    module._free(sqlPtr);
+
+    if (!resultPtr) {
+      throw new Error('scan failed: null result pointer');
+    }
+
+    try {
+      // PgScanResult struct: n_tokens(4) + tokens_ptr(4) + error_ptr(4)
+      const nTokens = module.getValue(resultPtr, 'i32');
+      const tokensPtr = module.getValue(resultPtr + 4, 'i32');
+      const errorPtr = module.getValue(resultPtr + 8, 'i32');
+
+      if (errorPtr) {
+        const error = await this.#parseScanError(errorPtr);
+        return { tokens: undefined, error };
+      }
+
+      const tokens: ScanToken[] = [];
+      for (let i = 0; i < nTokens; i++) {
+        // ScanTokenData: start(4) + end(4) + name_ptr(4) + keyword_kind(4) = 16 bytes
+        const base = tokensPtr + i * 16;
+        const start = module.getValue(base, 'i32');
+        const end = module.getValue(base + 4, 'i32');
+        const namePtr = module.getValue(base + 8, 'i32');
+        const kwKind = module.getValue(base + 12, 'i32');
+
+        tokens.push({
+          kind: readString(module.HEAP8, namePtr),
+          text: textDecoder.decode(sqlBytes.slice(start, end)),
+          start,
+          end,
+          keywordKind: KEYWORD_KINDS[kwKind] ?? 'none',
+        });
+      }
+
+      return { tokens, error: undefined };
+    } finally {
+      module._free_scan_result(resultPtr);
+    }
+  }
+
+  async #parseScanError(errorPtr: number) {
+    const { message, fileName, position } =
+      await this.#readPgQueryError(errorPtr);
+    const type: ScanErrorType = fileName
+      ? (getParseErrorType(fileName) === 'syntax' ? 'syntax' : 'unknown')
+      : 'unknown';
+    return new ScanError(message, { type, position });
   }
 }
