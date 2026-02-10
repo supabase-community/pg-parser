@@ -312,6 +312,10 @@ export class PgParser<Version extends SupportedVersion = 17> {
     const resultPtr = module._scan_sql(sqlPtr);
     module._free(sqlPtr);
 
+    if (!resultPtr) {
+      throw new Error('scan failed: null result pointer');
+    }
+
     try {
       // PgScanResult struct: n_tokens(4) + tokens_ptr(4) + error_ptr(4)
       const nTokens = module.getValue(resultPtr, 'i32');
