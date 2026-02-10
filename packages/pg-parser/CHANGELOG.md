@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.7](https://github.com/supabase-community/pg-parser/compare/v0.1.6...v0.1.7) (2026-02-10)
+
+
+### Features
+
+* scanner/lexer ([#20](https://github.com/supabase-community/pg-parser/issues/20)) ([842be01](https://github.com/supabase-community/pg-parser/commit/842be01fd36d4f792102c66ccfeb97d39cd2ffeb))
+
+
+### Performance Improvements
+
+* skip closure compiler in debug builds ([#22](https://github.com/supabase-community/pg-parser/issues/22)) ([6ca903c](https://github.com/supabase-community/pg-parser/commit/6ca903c4c0ade1305b57f17e7c8c0d23329f2076))
+
 ## [0.1.6](https://github.com/supabase-community/pg-parser/compare/v0.1.5...v0.1.6) (2026-02-09)
 
 

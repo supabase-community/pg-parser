@@ -1,6 +1,6 @@
 {
   "name": "@supabase/pg-parser",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Parse Postgres SQL into an AST",
   "license": "MIT",
   "repository": {
