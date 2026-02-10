@@ -18,6 +18,8 @@ include $(SRC_DIR)/Filelists.mk
 OBJ_FILES = $(SRC_FILES:.c=.o)
 INCLUDE = $(SRC_DIR)/include
 
+RELEASE ?= 0
+
 CFLAGS = -Oz -Wall -std=c11
 LDFLAGS = -Wl,--gc-sections,--strip-all
 
@@ -55,7 +57,7 @@ JANSSON_STAMP = $(JANSSON_DIR)/.stamp
 
 $(OUTPUT_FILES): $(OBJ_FILES) $(LIBPG_QUERY_LIB) $(JANSSON_LIB)
 	@mkdir -p $(OUTPUT_DIR)
-	$(CC) $(LDFLAGS) $(EMSCRIPTEN_FLAGS) -o $(OUTPUT_JS) $(OBJ_FILES) $(LIBPG_QUERY_LIB) $(JANSSON_LIB) --closure 1 --emit-tsd $(OUTPUT_D_TS)
+	$(CC) $(LDFLAGS) $(EMSCRIPTEN_FLAGS) -o $(OUTPUT_JS) $(OBJ_FILES) $(LIBPG_QUERY_LIB) $(JANSSON_LIB) $(if $(filter 1,$(RELEASE)),--closure 1) --emit-tsd $(OUTPUT_D_TS)
 	@# Patch Emscripten glue code for bundler compatibility (webpack/turbopack).
 	@# 1. import("module") — bundlers can't resolve this Node.js builtin in browser bundles.
 	@# 2. new URL(".", import.meta.url) — bundlers trace the assigned variable back to
