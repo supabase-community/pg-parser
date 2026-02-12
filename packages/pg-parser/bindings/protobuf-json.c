@@ -73,6 +73,39 @@ JsonToProtobufResult *json_to_protobuf(char *json_string) {
   return result;
 }
 
+JsonToProtobufResult *json_to_protobuf_node(char *json_string) {
+  JsonToProtobufResult *result = (JsonToProtobufResult *)calloc(1, sizeof(JsonToProtobufResult));
+  ProtobufCMessage *protobuf_message = NULL;
+
+  char *error = (char *)malloc(sizeof(char) * 256);
+
+  int ret = json2protobuf_string(
+      json_string,
+      0,
+      &pg_query__node__descriptor,
+      &protobuf_message,
+      error,
+      256);
+
+  if (ret != 0) {
+    result->error = error;
+    return result;
+  }
+
+  free(error);
+
+  PgQuery__Node *node = (PgQuery__Node *)protobuf_message;
+
+  result->protobuf.len = pg_query__node__get_packed_size(node);
+  result->protobuf.data = malloc(sizeof(char) * result->protobuf.len);
+
+  pg_query__node__pack(node, (uint8_t *)result->protobuf.data);
+
+  protobuf_c_message_free_unpacked(protobuf_message, NULL);
+
+  return result;
+}
+
 void free_protobuf_to_json_result(ProtobufToJsonResult *result) {
   if (result->json_string) {
     free(result->json_string);

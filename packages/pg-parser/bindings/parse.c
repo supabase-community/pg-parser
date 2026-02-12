@@ -74,6 +74,28 @@ PgQueryDeparseResult *deparse_sql(char *parse_tree_json) {
   return result;
 }
 
+EXPORT("deparse_node")
+PgQueryDeparseResult *deparse_node(char *node_json) {
+  JsonToProtobufResult *protobuf_result = json_to_protobuf_node(node_json);
+
+  if (protobuf_result->error) {
+    PgQueryDeparseResult *result = (PgQueryDeparseResult *)malloc(sizeof(PgQueryDeparseResult));
+    PgQueryError *error = (PgQueryError *)calloc(1, sizeof(PgQueryError));
+    error->message = protobuf_result->error; // Transfer ownership of string
+    result->query = NULL;
+    result->error = error;
+    free(protobuf_result); // Don't free ->error, ownership transferred
+    return result;
+  }
+
+  PgQueryDeparseResult *result = (PgQueryDeparseResult *)malloc(sizeof(PgQueryDeparseResult));
+  *result = pg_query_deparse_node_protobuf(protobuf_result->protobuf);
+
+  free(protobuf_result->protobuf.data);
+  free(protobuf_result);
+  return result;
+}
+
 EXPORT("free_parse_result")
 void free_parse_result(PgQueryParseResult *result) {
   // Manually free instead of calling pg_query_free_parse_result(),

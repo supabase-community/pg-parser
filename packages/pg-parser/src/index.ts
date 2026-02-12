@@ -10,6 +10,7 @@ export {
 export * from './pg-parser.js';
 export type {
   KeywordKind,
+  Node,
   ParseResult,
   ScanToken,
   SupportedVersion,
