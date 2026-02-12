@@ -1,16 +1,16 @@
 # Postgres AST
 
-A guide to understanding the structure of the PostgreSQL abstract syntax tree (AST) produced by `pg-parser`.
+A guide to understanding the structure of the Postgres abstract syntax tree (AST) produced by `pg-parser`.
 
 ## Where the AST comes from
 
-PostgreSQL has its own SQL parser written in C, built on a Bison grammar (`gram.y`) and a Flex lexer (`scan.l`). When Postgres parses a SQL string, it produces an internal parse tree made up of C structs — `SelectStmt`, `RangeVar`, `A_Expr`, etc. — all defined in the Postgres source under `include/nodes/parsenodes.h` and related headers.
+Postgres has its own SQL parser written in C, built on a Bison grammar (`gram.y`) and a Flex lexer (`scan.l`). When Postgres parses a SQL string, it produces an internal parse tree made up of C structs - `SelectStmt`, `RangeVar`, `A_Expr`, etc. - all defined in the Postgres source under `include/nodes/parsenodes.h` and related headers.
 
-[libpg_query](https://github.com/pganalyze/libpg_query) extracts the Postgres parser into a standalone C library. It also defines a protobuf schema (`pg_query.proto`) that is **auto-generated from the actual PostgreSQL C struct definitions** — each C node struct becomes a corresponding protobuf message with a 1:1 field mapping. The original C field names are preserved via `json_name` annotations on every protobuf field.
+[libpg_query](https://github.com/pganalyze/libpg_query) extracts the Postgres parser into a standalone C library. It also defines a protobuf schema (`pg_query.proto`) that is **auto-generated from the actual Postgres C struct definitions** - each C node struct becomes a corresponding protobuf message with a 1:1 field mapping. The original C field names are preserved via `json_name` annotations on every protobuf field.
 
 `pg-parser` compiles libpg_query to WebAssembly and converts the protobuf output into JSON. The AST you work with in JavaScript/TypeScript is a direct representation of the same parse tree that Postgres uses internally. The node names (`SelectStmt`, `A_Expr`, `RangeVar`, etc.), the field names (`targetList`, `fromClause`, `whereClause`, etc.), and the overall tree shape all come straight from the Postgres source.
 
-This means the [PostgreSQL source code](https://github.com/postgres/postgres/blob/master/src/include/nodes/parsenodes.h) and [libpg_query's protobuf schema](https://github.com/pganalyze/libpg_query/blob/17-6.1.0/protobuf/pg_query.proto) are the authoritative references for understanding any node type. When you encounter an unfamiliar node, searching the Postgres source for its struct definition will tell you exactly what each field means.
+This means the [Postgres source code](https://github.com/postgres/postgres/blob/master/src/include/nodes/parsenodes.h) and [libpg_query's protobuf schema](https://github.com/pganalyze/libpg_query/blob/17-6.1.0/protobuf/pg_query.proto) are the authoritative references for understanding any node type. When you encounter an unfamiliar node, searching the Postgres source for its struct definition will tell you exactly what each field means.
 
 ## Top-level structure
 
@@ -63,11 +63,11 @@ Every AST node in the JSON output is wrapped in an object with a single key: the
 }
 ```
 
-This wrapping exists because Postgres's parse tree is polymorphic — many fields can hold different kinds of nodes. In the C source, this is handled via a `NodeTag` enum and void pointers. In the protobuf schema, it's a `oneof` inside a `Node` message with 260+ variants. In the JSON output, it becomes an object with a single key that tells you the node type.
+This wrapping exists because Postgres's parse tree is polymorphic - many fields can hold different kinds of nodes. In the C source, this is handled via a `NodeTag` enum and void pointers. In the protobuf schema, it's a `oneof` inside a `Node` message with 260+ variants. In the JSON output, it becomes an object with a single key that tells you the node type.
 
 This pattern appears **everywhere** in the tree. The `stmt` field in `RawStmt` is a wrapped node. Every element in `targetList`, `fromClause`, and `name` is a wrapped node. Expression fields like `whereClause`, `lexpr`, and `rexpr` are wrapped nodes. When you traverse the tree, you'll unwrap nodes at nearly every level.
 
-Not every nested object is wrapped though. Fields that are typed as a specific message (rather than the generic `Node`) are embedded directly. For example, `RangeVar.alias` is typed as `Alias` (not `Node`), so it appears as `alias: { aliasname: "u" }` — no wrapping. The wrapping only happens for fields typed as `Node` in the protobuf schema, which is how Postgres represents polymorphic tree positions.
+Not every nested object is wrapped though. Fields that are typed as a specific message (rather than the generic `Node`) are embedded directly. For example, `RangeVar.alias` is typed as `Alias` (not `Node`), so it appears as `alias: { aliasname: "u" }` - no wrapping. The wrapping only happens for fields typed as `Node` in the protobuf schema, which is how Postgres represents polymorphic tree positions.
 
 ### Unwrapping nodes
 
@@ -103,7 +103,7 @@ switch (type) {
 
 ## Node categories
 
-The ~260 node types in Postgres's parse tree fall into several categories. You don't need to memorize them — but knowing the categories helps you reason about what kind of node to expect in a given position.
+The ~260 node types in Postgres's parse tree fall into several categories. You don't need to memorize them, but knowing the categories helps you reason about what kind of node to expect in a given position.
 
 ### Statement nodes
 
@@ -127,11 +127,11 @@ These represent top-level SQL commands. They appear as the `stmt` inside a `RawS
 
 There are about 70+ statement node types covering every SQL command that Postgres supports.
 
-Note: some names don't match the SQL keyword exactly. `CREATE TABLE` produces a `CreateStmt` (not `CreateTableStmt`). `CREATE INDEX` produces an `IndexStmt`. These names come directly from the PostgreSQL C source.
+Note: some names don't match the SQL keyword exactly. `CREATE TABLE` produces a `CreateStmt` (not `CreateTableStmt`). `CREATE INDEX` produces an `IndexStmt`. These names come directly from the Postgres C source.
 
 ### Expression nodes
 
-These represent values, operators, and computations. They appear wherever a value is expected — `whereClause`, `targetList` values, `HAVING`, function arguments, etc.
+These represent values, operators, and computations. They appear wherever a value is expected - `whereClause`, `targetList` values, `HAVING`, function arguments, etc.
 
 | Node | Represents | Example |
 |------|-----------|---------|
@@ -148,7 +148,7 @@ These represent values, operators, and computations. They appear wherever a valu
 
 ### Clause and structural nodes
 
-These represent the building blocks that statements are composed of. They typically don't appear at the top level — they appear as children of statement or expression nodes.
+These represent the building blocks that statements are composed of. They typically don't appear at the top level - they appear as children of statement or expression nodes.
 
 | Node | Represents | Found in |
 |------|-----------|----------|
@@ -211,10 +211,10 @@ Similarly, `A_Expr.name` is an array of wrapped `String` nodes representing the 
 
 ### Enums are strings
 
-Postgres enums are represented as string values in the JSON:
+Postgres enums are represented as string values in the JSON. You'll run into them in a lot of places - expression types, join kinds, sort ordering, set operations, etc.
 
 ```typescript
-// A_Expr.kind
+// A_Expr.kind - determines what kind of expression this is
 "AEXPR_OP"       // a + b, a = b
 "AEXPR_OP_ANY"   // a = ANY(b)
 "AEXPR_IN"       // a IN (1, 2, 3)
@@ -232,25 +232,43 @@ Postgres enums are represented as string values in the JSON:
 "JOIN_FULL"
 "JOIN_RIGHT"
 
-// SetOperation (SelectStmt.op)
+// SetOperation (SelectStmt.op) - for UNION/INTERSECT/EXCEPT queries
+"SETOP_NONE"
 "SETOP_UNION"
 "SETOP_INTERSECT"
 "SETOP_EXCEPT"
+
+// SortByDir (SortBy.sortby_dir) - ORDER BY direction
+"SORTBY_DEFAULT"
+"SORTBY_ASC"
+"SORTBY_DESC"
+
+// SubLinkType (SubLink.subLinkType) - subquery context
+"EXISTS_SUBLINK"  // EXISTS (SELECT ...)
+"ANY_SUBLINK"     // x = ANY (SELECT ...)
+"ALL_SUBLINK"     // x > ALL (SELECT ...)
+"EXPR_SUBLINK"    // (SELECT ...)
+
+// ObjectType (DropStmt.removeType, etc.) - what kind of object
+"OBJECT_TABLE"
+"OBJECT_INDEX"
+"OBJECT_SEQUENCE"
+"OBJECT_VIEW"
+"OBJECT_FUNCTION"
+"OBJECT_SCHEMA"
 ```
 
-### Default values are omitted
+### Default values and missing fields
 
-Following protobuf 3 semantics, fields with default values (0, false, empty string, empty array) are omitted from the JSON output. This means:
+Message fields (nested objects) and repeated fields (arrays) are omitted when not present. So a `SelectStmt` with no `WHERE` clause won't have a `whereClause` field, and an unused `distinctClause` is simply absent.
 
-- A `SelectStmt` with no `WHERE` clause won't have a `whereClause` field at all
-- A `RangeVar` with `inh: true` (the default for inheritance) may omit the `inh` field
-- Empty lists like an unused `distinctClause` are simply absent
+Scalar fields (booleans, numbers, strings, enums) always appear in the output, even when set to their default value. For example, you'll see `groupDistinct: false`, `op: "SETOP_NONE"`, and `name: ""` in the output even though these are the defaults.
 
-Always access fields with optional chaining or check for `undefined`.
+Always access message fields with optional chaining or check for `undefined`.
 
 ### `location` fields track source positions
 
-Most nodes include a `location` field — a byte offset into the original SQL string pointing to where that construct started. Useful for error reporting, source maps, or syntax highlighting. These are zero-based. When `location` is `-1` or absent, the node doesn't have a meaningful source position (e.g. it was synthesized during parse tree construction).
+Most nodes include a `location` field - a byte offset into the original SQL string pointing to where that construct started. Useful for error reporting, source maps, or syntax highlighting. These are zero-based. When `location` is `-1` or absent, the node doesn't have a meaningful source position (e.g. it was synthesized during parse tree construction).
 
 ### Constants use a nested value wrapper
 
@@ -270,7 +288,7 @@ Most nodes include a `location` field — a byte offset into the original SQL st
 { A_Const: { isnull: true } }
 ```
 
-The double nesting (`ival: { ival: 42 }`) comes from the protobuf `oneof` — the outer key selects which variant is active, the inner object contains the actual value. This is a consequence of the wrapping pattern applied consistently.
+The double nesting (`ival: { ival: 42 }`) comes from the protobuf `oneof` - the outer key selects which variant is active, the inner object contains the actual value. This is a consequence of the wrapping pattern applied consistently.
 
 ### Qualified names are lists
 
@@ -287,7 +305,7 @@ Multi-part names like `schema.table` or `schema.function` are represented as arr
 { FuncCall: { funcname: [{ String: { sval: "pg_catalog" } }, { String: { sval: "now" } }] } }
 ```
 
-`RangeVar` is special — it has dedicated `schemaname` and `relname` fields. Most other places (function names, operator names, type names) use a list of `String` nodes.
+`RangeVar` is special - it has dedicated `schemaname` and `relname` fields. Most other places (function names, operator names, type names) use a list of `String` nodes.
 
 ### Column references use `fields`
 
@@ -307,21 +325,9 @@ Multi-part names like `schema.table` or `schema.function` are represented as arr
 { ColumnRef: { fields: [{ String: { sval: "users" } }, { A_Star: {} }] } }
 ```
 
-## Reasoning about the tree structure
+## Example walkthrough
 
-When you need to figure out what a particular SQL construct looks like in the AST, try this approach:
-
-1. **Parse an example.** Use `pg-parser` to parse a minimal SQL query containing the construct you're interested in, then inspect the output.
-
-2. **Search the Postgres source.** Look up the node struct in [parsenodes.h](https://github.com/postgres/postgres/blob/master/src/include/nodes/parsenodes.h). The struct fields tell you exactly what to expect.
-
-3. **Check the protobuf schema.** The [pg_query.proto](https://github.com/pganalyze/libpg_query/blob/17-6.1.0/protobuf/pg_query.proto) file defines every message with `json_name` annotations that show the exact field names in the JSON output.
-
-4. **Use TypeScript's types.** The generated types will guide you with autocompletion and type errors when accessing fields.
-
-### Example walkthrough
-
-Here's what `SELECT u.id, count(*) FROM users u WHERE u.active = true GROUP BY u.id` looks like:
+Here's what `SELECT u.id, count(*) FROM users u WHERE u.active = true GROUP BY u.id` looks like (some fields like `location` and scalar defaults omitted for clarity):
 
 ```typescript
 {
@@ -347,7 +353,8 @@ Here's what `SELECT u.id, count(*) FROM users u WHERE u.active = true GROUP BY u
               val: {
                 FuncCall: {            // count(*)
                   funcname: [{ String: { sval: "count" } }],
-                  agg_star: true
+                  agg_star: true,
+                  funcformat: "COERCE_EXPLICIT_CALL"
                 }
               }
             }
@@ -358,6 +365,7 @@ Here's what `SELECT u.id, count(*) FROM users u WHERE u.active = true GROUP BY u
             RangeVar: {                // FROM users u
               relname: "users",
               inh: true,
+              relpersistence: "p",
               alias: { aliasname: "u" }
             }
           }
@@ -388,7 +396,9 @@ Here's what `SELECT u.id, count(*) FROM users u WHERE u.active = true GROUP BY u
               ]
             }
           }
-        ]
+        ],
+        limitOption: "LIMIT_OPTION_DEFAULT",
+        op: "SETOP_NONE"
       }
     }
   }]
@@ -397,7 +407,7 @@ Here's what `SELECT u.id, count(*) FROM users u WHERE u.active = true GROUP BY u
 
 ## TypeScript types
 
-`pg-parser` ships generated TypeScript types for every node in the AST, produced from the same protobuf schema that defines the AST structure. The types are version-specific — each supported Postgres version (15, 16, 17) has its own set of type definitions, since node fields can change between Postgres releases.
+`pg-parser` ships generated TypeScript types for every node in the AST. These are produced using [pg-proto-parser](https://github.com/constructive-io/pgsql-parser/tree/main/packages/proto-parser), which reads libpg_query's protobuf schema and generates type-safe interfaces for each AST node. The types are version-specific - each supported Postgres version (15, 16, 17) has its own set of type definitions, since node fields can change between Postgres releases.
 
 When you construct a `PgParser` with a known version, all return types are automatically narrowed:
 
