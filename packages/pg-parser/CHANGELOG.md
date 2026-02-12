@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/supabase-community/pg-parser/compare/v0.1.7...v0.1.8) (2026-02-12)
+
+
+### Features
+
+* node-level deparse ([#24](https://github.com/supabase-community/pg-parser/issues/24)) ([1fb80e8](https://github.com/supabase-community/pg-parser/commit/1fb80e83eae00bf9f9954f6467c905850d5714a7))
+
 ## [0.1.7](https://github.com/supabase-community/pg-parser/compare/v0.1.6...v0.1.7) (2026-02-10)
 
 
