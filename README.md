@@ -276,7 +276,9 @@ The output will be an object that looks like this:
 }
 ```
 
-This object will be of type `ParseResult` and will contain types for all nodes in the AST. Note that this type can vary slightly between Postgres versions. `PgParser` will automatically detect the version of Postgres you are using and return the correct type at compile time.
+This object will be of type `ParseResult` and will contain types for all nodes in the AST. For a deeper guide to understanding the AST structure, node types, and common patterns, see the [Postgres AST guide](docs/postgres-ast.md).
+
+Note that this type can vary slightly between Postgres versions. `PgParser` will automatically detect the version of Postgres you are using and return the correct type at compile time.
 
 ```typescript
 const parser = new PgParser({ version: 16 });
@@ -440,7 +442,7 @@ const { type, node } = unwrapNode(wrappedStatement);
 // { type: 'SelectStmt', node: { ... } }
 ```
 
-**Background:** The AST structure produced by Postgres ([libpg_query](https://github.com/pganalyze/libpg_query)) can be complex due to nesting. For example, a `SELECT` statement is represented as:
+**Background:** The AST structure produced by Postgres ([libpg_query](https://github.com/pganalyze/libpg_query)) can be complex due to nesting (see the [Postgres AST guide](docs/postgres-ast.md) for a full breakdown). For example, a `SELECT` statement is represented as:
 
 ```typescript
 {
