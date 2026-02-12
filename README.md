@@ -228,7 +228,7 @@ Each `ScanToken` has the following properties:
 
 - `kind`: The raw Postgres token name (e.g. `'SELECT'`, `'IDENT'`, `'ICONST'`, `'ASCII_43'`). These are the internal names used by Postgres's lexer, passed through with no transformation. Keywords like `SELECT` and `FROM` use their SQL name. Operators and punctuation use `ASCII_<code>` notation (e.g. `ASCII_40` for `(`). Some multi-character operators have named kinds like `TYPECAST` (`::`) and `NOT_EQUALS` (`<>` and `!=`).
 
-- `text`: The original text of the token from the SQL input. This is always the exact characters from the source — useful for distinguishing tokens that share the same `kind` (e.g. `<>` vs `!=` are both `NOT_EQUALS`, but `text` preserves the original).
+- `text`: The original text of the token from the SQL input. This is always the exact characters from the source - useful for distinguishing tokens that share the same `kind` (e.g. `<>` vs `!=` are both `NOT_EQUALS`, but `text` preserves the original).
 
 - `start`: Start byte offset in the input (0-based, inclusive).
 
@@ -309,7 +309,9 @@ The output will be an object that looks like this:
 }
 ```
 
-This object will be of type `ParseResult` and will contain types for all nodes in the AST. Note that this type can vary slightly between Postgres versions. `PgParser` will automatically detect the version of Postgres you are using and return the correct type at compile time.
+This object will be of type `ParseResult` and will contain types for all nodes in the AST. For a deeper guide to understanding the AST structure, node types, and common patterns, see the [Postgres AST guide](docs/postgres-ast.md).
+
+Note that this type can vary slightly between Postgres versions. `PgParser` will automatically detect the version of Postgres you are using and return the correct type at compile time.
 
 ```typescript
 const parser = new PgParser({ version: 16 });
@@ -474,7 +476,7 @@ const { type, node } = unwrapNode(wrappedStatement);
 // { type: 'SelectStmt', node: { ... } }
 ```
 
-**Background:** The AST structure produced by Postgres ([libpg_query](https://github.com/pganalyze/libpg_query)) can be complex due to nesting. For example, a `SELECT` statement is represented as:
+**Background:** The AST structure produced by Postgres ([libpg_query](https://github.com/pganalyze/libpg_query)) can be complex due to nesting (see the [Postgres AST guide](docs/postgres-ast.md) for a full breakdown). For example, a `SELECT` statement is represented as:
 
 ```typescript
 {
@@ -544,7 +546,7 @@ switch (type) {
 
 ## Bundle size
 
-WASM binaries are lazy-loaded — only fetched when you construct a `PgParser`, and only for the version you request. The JS bundle itself is **~3 KB compressed**.
+WASM binaries are lazy-loaded - only fetched when you construct a `PgParser`, and only for the version you request. The JS bundle itself is **~3 KB compressed**.
 
 Each Postgres version ships as a separate `.wasm` file. Most CDNs and hosting providers serve WASM with brotli compression by default (gzip as fallback), so transfer size is what matters in practice.
 
