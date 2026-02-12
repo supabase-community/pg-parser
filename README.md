@@ -168,6 +168,39 @@ TypeScript will correctly narrow the type of `result` based on whether there was
 
 If you prefer throwing an error instead of returning a result object, you can wrap `deparse()` in the `unwrapDeparseResult()` helper (see [Utility functions](#utility-functions)).
 
+#### Deparsing individual nodes
+
+In addition to full `ParseResult` objects, `deparse()` also accepts individual AST nodes. This produces a SQL fragment for just that node - useful for extracting and deparsing subqueries, expressions, or clauses without wrapping them in a full parse result.
+
+```typescript
+import { PgParser, unwrapNode } from '@supabase/pg-parser';
+
+const parser = new PgParser();
+
+// Parse a query with a subquery
+const { tree } = await parser.parse(
+  'SELECT * FROM orders WHERE user_id IN (SELECT id FROM vip_users)',
+);
+
+// Extract and deparse just the WHERE clause
+const { node: select } = unwrapNode(tree.stmts[0].stmt);
+const { sql: where } = await parser.deparse(select.whereClause);
+console.log(where);
+// user_id IN (SELECT id FROM vip_users)
+
+// Or drill deeper and extract just the subquery
+const { node: subLink } = unwrapNode(select.whereClause);
+const { sql: subquery } = await parser.deparse(subLink.subselect);
+console.log(subquery);
+// SELECT id FROM vip_users
+```
+
+**Supported node types:**
+
+- **Statements** — `SelectStmt`, `InsertStmt`, `UpdateStmt`, `DeleteStmt`, `CreateStmt`, `MergeStmt`, `GrantStmt`, `TruncateStmt`, etc.
+- **Expressions** — `A_Expr`, `A_Const`, `ColumnRef`, `FuncCall`, `BoolExpr`, `TypeCast`, `CaseExpr`, `CoalesceExpr`, `SubLink`, `NullTest`, `ParamRef`, etc.
+- **Clauses** — `ResTarget`, `RangeVar`, `TypeName`, `SortBy`, `JoinExpr`, `ColumnDef`, `WindowDef`, `CommonTableExpr`, etc.
+
 ### `scan()` method
 
 To tokenize a SQL string, use the `scan()` method:
@@ -382,6 +415,7 @@ If the scan fails, `PgParser` will return an `error` of type `ScanError` with th
 - `message`: A human-readable error message (e.g., `unterminated quoted string`).
 
 - `type`: The type of scan error. Possible values are:
+
   - `syntax`: A lexical error from the scanner, such as unterminated string literals or invalid escape sequences.
   - `unknown`: An unknown error type, typically representing an internal scanner error.
 

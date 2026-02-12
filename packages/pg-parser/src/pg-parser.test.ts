@@ -450,6 +450,496 @@ describe.each([15, 16, 17])('deparser (v%i)', (version) => {
     });
   });
 
+  describe('per-node deparse', () => {
+    it('deparses a statement node extracted from a parse result', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT id, name FROM users WHERE active = true'),
+      );
+      const stmt = parseResult.stmts![0]!.stmt!;
+      const sql = await unwrapDeparseResult(pgParser.deparse(stmt));
+      expect(sql).toBe('SELECT id, name FROM users WHERE active = true');
+    });
+
+    it('deparses a hand-built SelectStmt node', async () => {
+      const node = {
+        SelectStmt: {
+          targetList: [
+            {
+              ResTarget: {
+                val: {
+                  ColumnRef: { fields: [{ String: { sval: 'id' } }] },
+                },
+              },
+            },
+          ],
+          fromClause: [
+            {
+              RangeVar: { relname: 'users', inh: true, relpersistence: 'p' },
+            },
+          ],
+          limitOption: 'LIMIT_OPTION_DEFAULT',
+          op: 'SETOP_NONE',
+        },
+      };
+      const sql = await unwrapDeparseResult(pgParser.deparse(node as any));
+      expect(sql).toBe('SELECT id FROM users');
+    });
+
+    it('deparses an expression node (A_Expr)', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT 1 + 1'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe('1 + 1');
+    });
+
+    it('deparses a ColumnRef node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT u.name FROM users u'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe('u.name');
+    });
+
+    it('deparses a FuncCall node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT count(*) FROM users'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe('count(*)');
+    });
+
+    it('deparses a TypeName node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse("SELECT '2024-01-01'::date"),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const typeCast = assertAndUnwrapNode(resTarget.val!, 'TypeCast');
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse({ TypeName: typeCast.typeName! } as any),
+      );
+      expect(sql).toBe('date');
+    });
+
+    it('deparses a RangeVar node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT * FROM my_schema.my_table'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(selectStmt.fromClause![0]!),
+      );
+      expect(sql).toBe('my_schema.my_table');
+    });
+
+    it('deparses a ResTarget node (val + alias)', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT 1 + 1 AS total'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(selectStmt.targetList![0]!),
+      );
+      expect(sql).toBe('1 + 1 AS total');
+    });
+
+    it('deparses a non-SELECT statement node (InsertStmt)', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse("INSERT INTO users (name) VALUES ('Alice')"),
+      );
+      const stmt = parseResult.stmts![0]!.stmt!;
+      const sql = await unwrapDeparseResult(pgParser.deparse(stmt));
+      expect(sql).toBe("INSERT INTO users (name) VALUES ('Alice')");
+    });
+
+    it('deparses a DDL statement node (CreateStmt)', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse(
+          'CREATE TABLE users (id serial PRIMARY KEY, name text NOT NULL)',
+        ),
+      );
+      const stmt = parseResult.stmts![0]!.stmt!;
+      const sql = await unwrapDeparseResult(pgParser.deparse(stmt));
+      expect(sql).toBe(
+        'CREATE TABLE users (id serial PRIMARY KEY, name text NOT NULL)',
+      );
+    });
+
+    it('deparses a BoolExpr node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT * FROM users WHERE active = true AND age > 18'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(selectStmt.whereClause!),
+      );
+      expect(sql).toBe('active = true AND age > 18');
+    });
+
+    it('deparses a TypeCast expression node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse("SELECT '2024-01-01'::date"),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe("'2024-01-01'::date");
+    });
+
+    it('deparses a SortBy clause node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT * FROM users ORDER BY name DESC'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(selectStmt.sortClause![0]!),
+      );
+      expect(sql).toBe('name DESC');
+    });
+
+    it('deparses a ParamRef node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT $1'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe('$1');
+    });
+
+    it('deparses a NullTest node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT * FROM users WHERE name IS NOT NULL'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(selectStmt.whereClause!),
+      );
+      expect(sql).toBe('name IS NOT NULL');
+    });
+
+    it('deparses a SQLValueFunction node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT CURRENT_TIMESTAMP'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe('current_timestamp');
+    });
+
+    it('deparses a MinMaxExpr node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT GREATEST(1, 2, 3)'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe('GREATEST(1, 2, 3)');
+    });
+
+    it('deparses an A_ArrayExpr node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT ARRAY[1, 2, 3]'),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe('ARRAY[1, 2, 3]');
+    });
+
+    it('deparses a WHERE clause with IN subquery', async () => {
+      const tree = await unwrapParseResult(
+        pgParser.parse(
+          'SELECT * FROM orders WHERE user_id IN (SELECT id FROM vip_users)',
+        ),
+      );
+      const select = assertAndUnwrapNode(tree.stmts![0]!.stmt!, 'SelectStmt');
+      const where = await unwrapDeparseResult(
+        pgParser.deparse(select.whereClause!),
+      );
+      expect(where).toBe('user_id IN (SELECT id FROM vip_users)');
+
+      // Drill deeper: extract and deparse just the subquery
+      const subLink = assertAndUnwrapNode(select.whereClause!, 'SubLink');
+      const subquery = await unwrapDeparseResult(
+        pgParser.deparse(subLink.subselect!),
+      );
+      expect(subquery).toBe('SELECT id FROM vip_users');
+    });
+
+    it('deparses a WHERE clause and drills into each AND condition', async () => {
+      const tree = await unwrapParseResult(
+        pgParser.parse(
+          'SELECT * FROM users WHERE active = true AND age > 18',
+        ),
+      );
+      const select = assertAndUnwrapNode(
+        tree.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+
+      // Extract and deparse the WHERE clause
+      const where = await unwrapDeparseResult(
+        pgParser.deparse(select.whereClause!),
+      );
+      expect(where).toBe('active = true AND age > 18');
+
+      // Drill deeper: extract each condition from the AND expression
+      const bool = assertAndUnwrapNode(select.whereClause!, 'BoolExpr');
+      const left = await unwrapDeparseResult(
+        pgParser.deparse(bool.args![0]!),
+      );
+      const right = await unwrapDeparseResult(
+        pgParser.deparse(bool.args![1]!),
+      );
+      expect(left).toBe('active = true');
+      expect(right).toBe('age > 18');
+    });
+
+    it('deparses a SubLink node (EXISTS)', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse(
+          'SELECT * FROM users u WHERE EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id)',
+        ),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(selectStmt.whereClause!),
+      );
+      expect(sql).toBe(
+        'EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id)',
+      );
+    });
+
+    it('deparses a CaseExpr node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse(
+          "SELECT CASE WHEN x = 1 THEN 'a' ELSE 'b' END FROM t",
+        ),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe("CASE WHEN x = 1 THEN 'a' ELSE 'b' END");
+    });
+
+    it('deparses a CoalesceExpr node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse("SELECT COALESCE(name, 'unknown')"),
+      );
+      const selectStmt = assertAndUnwrapNode(
+        parseResult.stmts![0]!.stmt!,
+        'SelectStmt',
+      );
+      const resTarget = assertAndUnwrapNode(
+        selectStmt.targetList![0]!,
+        'ResTarget',
+      );
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse(resTarget.val!),
+      );
+      expect(sql).toBe("COALESCE(name, 'unknown')");
+    });
+
+    it('deparses a MERGE statement node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse(
+          'MERGE INTO target t USING source s ON t.id = s.id WHEN MATCHED THEN UPDATE SET val = s.val WHEN NOT MATCHED THEN INSERT (id, val) VALUES (s.id, s.val)',
+        ),
+      );
+      const stmt = parseResult.stmts![0]!.stmt!;
+      const sql = await unwrapDeparseResult(pgParser.deparse(stmt));
+      expect(sql).toBe(
+        'MERGE INTO target t USING source s ON t.id = s.id WHEN MATCHED THEN UPDATE SET val = s.val WHEN NOT MATCHED THEN INSERT (id, val) VALUES (s.id, s.val)',
+      );
+    });
+
+    it('deparses a GRANT statement node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('GRANT SELECT, INSERT ON users TO my_role'),
+      );
+      const stmt = parseResult.stmts![0]!.stmt!;
+      const sql = await unwrapDeparseResult(pgParser.deparse(stmt));
+      expect(sql).toBe('GRANT select, insert ON users TO my_role');
+    });
+
+    it('deparses a TRUNCATE statement node', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('TRUNCATE users'),
+      );
+      const stmt = parseResult.stmts![0]!.stmt!;
+      const sql = await unwrapDeparseResult(pgParser.deparse(stmt));
+      expect(sql).toBe('TRUNCATE users');
+    });
+
+    it('still deparses full ParseResult', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT 1'),
+      );
+      const sql = await unwrapDeparseResult(pgParser.deparse(parseResult));
+      expect(sql).toBe('SELECT 1');
+    });
+
+    it('returns error for invalid node (wrong field type)', async () => {
+      const result = await pgParser.deparse({
+        SelectStmt: { targetList: 'not an array' },
+      } as any);
+      expect(result.error).toBeDefined();
+      expect(result.error!.name).toBe('DeparseError');
+    });
+
+    it('returns error for unknown node type', async () => {
+      const result = await pgParser.deparse({
+        FakeNode: { foo: 'bar' },
+      } as any);
+      expect(result.error).toBeDefined();
+      expect(result.error!.name).toBe('DeparseError');
+    });
+
+    it('deparses an A_Const node (integer)', async () => {
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse({ A_Const: { ival: { ival: 42 } } } as any),
+      );
+      expect(sql).toBe('42');
+    });
+
+    it('deparses an A_Const node (string)', async () => {
+      const sql = await unwrapDeparseResult(
+        pgParser.deparse({ A_Const: { sval: { sval: 'hello' } } } as any),
+      );
+      expect(sql).toBe("'hello'");
+    });
+
+    it('returns error for empty object', async () => {
+      const result = await pgParser.deparse({} as any);
+      expect(result.error).toBeDefined();
+      expect(result.error!.name).toBe('DeparseError');
+    });
+
+    it('does not leak memory during repeated per-node deparse', async () => {
+      const parseResult = await unwrapParseResult(
+        pgParser.parse('SELECT id, name FROM users'),
+      );
+      const stmt = parseResult.stmts![0]!.stmt!;
+
+      // Warm up
+      await unwrapDeparseResult(pgParser.deparse(stmt));
+
+      const heapBefore = await pgParser.getHeapSize();
+
+      for (let i = 0; i < 1000; i++) {
+        await unwrapDeparseResult(pgParser.deparse(stmt));
+      }
+
+      const heapAfter = await pgParser.getHeapSize();
+      expect(heapAfter - heapBefore).toBeLessThan(64 * 1024);
+    });
+  });
+
   describe('errors', () => {
     it('returns error when repeated field receives wrong type', async () => {
       const result = await pgParser.deparse({

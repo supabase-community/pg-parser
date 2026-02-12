@@ -4,7 +4,7 @@ Guide for contributors working on `@supabase/pg-parser`.
 
 ## Overview
 
-pg-parser compiles [libpg_query](https://github.com/pganalyze/libpg_query) (PostgreSQL's SQL parser) to WebAssembly via Emscripten. It supports PG versions 15, 16, and 17 as separate WASM binaries and exposes `parse()` and `deparse()` methods in TypeScript.
+pg-parser compiles [libpg_query](https://github.com/pganalyze/libpg_query) (PostgreSQL's SQL parser) to WebAssembly via Emscripten. It supports PG versions 15, 16, and 17 as separate WASM binaries and exposes `parse()`, `deparse()`, and `scan()` methods in TypeScript. `deparse()` accepts both full `ParseResult` objects and individual AST `Node`s (for producing SQL fragments).
 
 ## Why Emscripten (not WASI)
 
@@ -28,6 +28,10 @@ SQL string
 
 ### Deparse Flow
 
+`deparse()` accepts either a full `ParseResult` or an individual `Node`. TypeScript detects which via `'stmts' in input || 'version' in input` and routes to the appropriate C export.
+
+**Full statement deparse** (`_deparse_sql`):
+
 ```
 ParseResult<Version>
   → [TypeScript]         JSON.stringify()              → JSON string
@@ -35,6 +39,22 @@ ParseResult<Version>
   → [protobuf-c]         pack                          → protobuf binary
   → [libpg_query]        pg_query_deparse_protobuf()   → SQL string
 ```
+
+**Per-node deparse** (`_deparse_node`):
+
+```
+Node<Version>
+  → [TypeScript]         JSON.stringify()              → JSON string
+  → [protobuf2json]      json_to_protobuf_node()       → C message structs (pg_query__node__descriptor)
+  → [protobuf-c]         pack                          → protobuf binary
+  → [libpg_query]        pg_query_deparse_node_protobuf()
+      → pg_query_protobuf_to_node()                    → internal Node*
+      → deparseNode()                                  → SQL fragment
+```
+
+`deparseNode()` is a flat switch that dispatches each node type to its specific handler: expressions route to `deparseExpr()`, clause types call their handler directly (e.g. `deparseColumnRef`, `deparseFuncCall`), and statements fall through to `deparseStmt()`.
+
+Both paths reuse the same result struct and cleanup (`_free_deparse_result`).
 
 ### Memory
 
@@ -50,6 +70,19 @@ All WASM memory is managed explicitly. The TypeScript side follows the same patt
 
 - `ParseError` — has `message`, `type` (`'syntax'` | `'semantic'` | `'unknown'`), and `position` (0-based offset into the SQL string)
 - `DeparseError` — has `message` only (no position or type, since errors occur on the AST)
+
+### libpg_query Patches
+
+Per-node deparse requires calling internal libpg_query functions (`deparseExpr`, `_readNode`, etc.) that are `static` — not accessible from our C bindings. We work around this by appending new functions to libpg_query source files via patch files in `bindings/patches/`. The Makefile applies these automatically after cloning the vendored source.
+
+**Patch files:**
+
+- `deparse_node_15_16.c` — `deparseNode()` switch for PG 15/16 (2-param `deparseExpr`)
+- `deparse_node_17.c` — `deparseNode()` switch for PG 17 (3-param `deparseExpr` + JSON expression types)
+- `deparse_node_entry.c` — `pg_query_deparse_node_protobuf()` entry point (version-agnostic)
+- `read_node_public.c` — `pg_query_protobuf_to_node()` wrapper around static `_readNode()` (version-agnostic)
+
+**Brittleness:** patches are append-only (`cat >>`), so they can't conflict with upstream changes to existing lines. The only maintenance trigger is bumping the libpg_query version tag (e.g. PG 18), which would require checking for changed handler signatures and creating a new version-specific patch file.
 
 ### The Protobuf-JSON Bridge
 

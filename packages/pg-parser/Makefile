@@ -86,6 +86,24 @@ $(LIBPG_QUERY_STAMP):
 	sed -i 's|--c_out=\.|--c_out=json_name=true:.|' $(LIBPG_QUERY_DIR)/Makefile
 	@# Force protobuf regeneration so .pb-c.c/.h get json_name descriptors
 	touch $(LIBPG_QUERY_DIR)/protobuf/pg_query.proto
+	@# --- Per-node deparse support ---
+	@# Append deparseNode() to postgres_deparse.c (version-specific patch because
+	@# deparseExpr signature changed in PG17 and PG17 added JSON expression types).
+	@# These patches only append new functions — they never modify existing code.
+	@# The only maintenance trigger is bumping LIBPG_QUERY_TAG to a new PG version.
+ifeq ($(LIBPG_QUERY_VERSION),17)
+	cat $(SRC_DIR)/patches/deparse_node_17.c >> $(LIBPG_QUERY_SRC_DIR)/postgres_deparse.c
+else
+	cat $(SRC_DIR)/patches/deparse_node_15_16.c >> $(LIBPG_QUERY_SRC_DIR)/postgres_deparse.c
+endif
+	@# Append pg_query_deparse_node_protobuf() entry point
+	cat $(SRC_DIR)/patches/deparse_node_entry.c >> $(LIBPG_QUERY_SRC_DIR)/pg_query_deparse.c
+	@# Append pg_query_protobuf_to_node() (public wrapper around static _readNode)
+	cat $(SRC_DIR)/patches/read_node_public.c >> $(LIBPG_QUERY_SRC_DIR)/pg_query_readfuncs_protobuf.c
+	@# Add declarations to headers
+	sed -i '/extern void deparseRawStmt/i\extern void deparseNode(StringInfo str, Node *node);' $(LIBPG_QUERY_SRC_DIR)/postgres_deparse.h
+	sed -i '/List \* pg_query_protobuf_to_nodes/a\Node * pg_query_protobuf_to_node(PgQueryProtobuf protobuf);' $(LIBPG_QUERY_SRC_DIR)/pg_query_readfuncs.h
+	echo 'PgQueryDeparseResult pg_query_deparse_node_protobuf(PgQueryProtobuf node_protobuf);' >> $(LIBPG_QUERY_DIR)/pg_query.h
 	touch $@
 
 $(JANSSON_STAMP):

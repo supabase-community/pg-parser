@@ -9,6 +9,7 @@ import {
 import type {
   KeywordKind,
   MainModule,
+  Node,
   ParseResult,
   PgParserModule,
   ScanToken,
@@ -194,19 +195,51 @@ export class PgParser<Version extends SupportedVersion = 17> {
     };
   }
 
+  /**
+   * Converts an AST back into a SQL string.
+   *
+   * Accepts either a full `ParseResult` (as returned by `parse()`) or
+   * a single `Node` (e.g. `SelectStmt`, `A_Expr`, `RangeVar`).
+   *
+   * When a `Node` is passed, only that node is deparsed, producing a
+   * SQL fragment rather than a complete statement. This is useful for
+   * extracting and deparsing subqueries, expressions, or clauses.
+   *
+   * @example
+   * // Full ParseResult
+   * const { tree } = await parser.parse('SELECT 1');
+   * const { sql } = await parser.deparse(tree); // 'SELECT 1'
+   *
+   * @example
+   * // Extract and deparse a WHERE clause
+   * const { tree } = await parser.parse('SELECT * FROM users WHERE active = true AND age > 18');
+   * const { node: select } = unwrapNode(tree.stmts[0].stmt);
+   * const { sql } = await parser.deparse(select.whereClause); // 'active = true AND age > 18'
+   *
+   * @example
+   * // Drill deeper: extract each condition from the AND expression
+   * const { node: bool } = unwrapNode(select.whereClause);
+   * const { sql: left } = await parser.deparse(bool.args[0]); // 'active = true'
+   * const { sql: right } = await parser.deparse(bool.args[1]); // 'age > 18'
+   */
   async deparse(
-    parseResult: ParseResult<Version>
+    input: ParseResult<Version> | Node<Version>
   ): Promise<WrappedDeparseResult> {
     const module = await this.#module;
 
-    const json = JSON.stringify(parseResult);
+    // Node wrappers always have a single PascalCase key (e.g. 'SelectStmt'),
+    // never 'stmts' or 'version', so this safely distinguishes the two.
+    const isParseResult = 'stmts' in input || 'version' in input;
+    const json = JSON.stringify(input);
 
     const jsonBytes = textEncoder.encode(json);
     const jsonPtr = module._malloc(jsonBytes.length + 1); // +1 for null terminator
     module.HEAP8.set(jsonBytes, jsonPtr);
     module.HEAP8[jsonPtr + jsonBytes.length] = 0; // null terminator
 
-    const deparseResultPtr: Pointer = module._deparse_sql(jsonPtr);
+    const deparseResultPtr: Pointer = isParseResult
+      ? module._deparse_sql(jsonPtr)
+      : module._deparse_node(jsonPtr);
     module._free(jsonPtr);
 
     if (!deparseResultPtr) {
